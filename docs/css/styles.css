@@ -13,17 +13,15 @@ body {
 }
 
 .app-container {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    background: white;
-    border-radius: 8px;
+    height: 100vh;
     overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .navbar {
     border-radius: 8px 8px 0 0;
+    flex-shrink: 0;
 }
 
 .content-container {
@@ -34,8 +32,8 @@ body {
 
 #map {
     flex: 1;
-    height: 100%;
-    min-height: calc(100vh - 180px);
+    max-width: calc(100% - 650px);
+    height: calc(100vh - 180px);
 }
 
 .control-panel {
@@ -45,83 +43,74 @@ body {
     height: calc(100vh - 180px);
     display: flex;
     flex-direction: column;
-    transition: width 0.3s ease;
 }
 
-.control-panel.collapsed {
-    width: 40px;
+.control-panel-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.frozen-header {
+    padding: 20px;
+    background: white;
+    border-bottom: 1px solid #eee;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    overflow: hidden;
+}
+
+.control-panel.collapsed .frozen-header {
+    max-height: 60px;
+    padding: 10px 20px;
+}
+
+.control-panel.collapsed .frozen-header > *:not(.controls-header) {
+    display: none;
+}
+
+.controls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.control-panel.collapsed .controls-header {
+    margin-bottom: 0;
+}
+
+.controls-header h5 {
+    margin: 0;
 }
 
 .control-panel-toggle {
-    position: absolute;
-    right: 650px;
-    top: 10px;
-    background: white;
-    border: 1px solid #ddd;
-    border-right: none;
-    padding: 8px;
     cursor: pointer;
-    border-radius: 4px 0 0 4px;
-    z-index: 1000;
-    transition: right 0.3s ease;
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.control-panel.collapsed .control-panel-toggle {
-    right: 40px;
+.control-panel-toggle:hover {
+    background: #f8f9fa;
 }
 
 .control-panel-toggle .toggle-icon {
     transition: transform 0.3s ease;
 }
 
-.control-panel.collapsed .control-panel-toggle .toggle-icon {
+.control-panel.collapsed .toggle-icon {
     transform: rotate(180deg);
-}
-
-.control-panel-content {
-    padding: 20px;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    opacity: 1;
-    transition: opacity 0.3s ease;
-}
-
-.control-panel.collapsed .control-panel-content {
-    opacity: 0;
-    pointer-events: none;
 }
 
 .instructions-container {
     background-color: #f8f9fa;
     border-bottom: 1px solid #ddd;
     overflow: hidden;
-    transition: max-height 0.3s ease-out;
-    max-width: calc(100% - 650px);
-}
-
-.control-panel.collapsed + .instructions-container {
-    max-width: calc(100% - 40px);
-}
-
-.instructions {
-    padding: 15px;
-    margin-bottom: 0;
-}
-
-.instructions p {
-    margin-bottom: 8px;
-}
-
-.instructions ol {
-    margin-bottom: 8px;
-    padding-left: 25px;
-}
-
-.attribution {
-    font-size: 0.9em;
-    color: #666;
-    font-style: italic;
+    width: 100%;
 }
 
 .instructions-toggle {
@@ -150,16 +139,39 @@ body {
 .instructions-content {
     max-height: 1000px;
     transition: max-height 0.3s ease-out;
+    background-color: white;
 }
 
 .instructions-content.collapsed {
     max-height: 0;
 }
 
+.instructions {
+    padding: 15px;
+    margin-bottom: 0;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.instructions p {
+    margin-bottom: 8px;
+}
+
+.instructions ol {
+    margin-bottom: 8px;
+    padding-left: 25px;
+}
+
+.attribution {
+    font-size: 0.9em;
+    color: #666;
+    font-style: italic;
+}
+
 .species-list-container {
-    flex-grow: 1;
+    flex: 1;
     overflow-y: auto;
-    padding-top: 15px;
+    padding: 20px;
 }
 
 .species-list-header {
@@ -238,15 +250,4 @@ body {
 .btn-group-vertical .btn {
     margin-bottom: 5px;
     text-align: left;
-}
-
-.frozen-header {
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 1000;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 15px;
-    flex-shrink: 0;
 } 
