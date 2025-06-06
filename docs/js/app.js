@@ -198,7 +198,7 @@ function displaySpecies(species) {
         speciesHeader.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <span>0 Species found within Geofence:</span>
-                <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+                <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Unique Species List</button>
             </div>
         `;
         speciesHeader.classList.remove('d-none');
@@ -224,7 +224,7 @@ function displaySpecies(species) {
     speciesHeader.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
             <span>${uniqueSpeciesArray.length} Species found within Geofence:</span>
-            <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+            <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Unique Species List</button>
         </div>
     `;
     speciesHeader.classList.remove('d-none');
@@ -453,23 +453,39 @@ function downloadSpeciesList() {
         return;
     }
 
-    const sortedSpecies = sortSpeciesData(lastSpeciesData);
+    // Create a Map to store unique species by taxonomic hierarchy
+    const uniqueSpecies = new Map();
+    lastSpeciesData.forEach(s => {
+        // Create a key based on full taxonomic hierarchy including species
+        const taxonomyKey = `${s.kingdom || 'Animalia'}-${s.phylum || '-'}-${s.class || '-'}-${s.order || '-'}-${s.species || '-'}`;
+        if (!uniqueSpecies.has(taxonomyKey)) {
+            uniqueSpecies.set(taxonomyKey, s);
+        }
+    });
+
+    // Convert unique species back to array and sort by taxonomy
+    const sortedSpecies = Array.from(uniqueSpecies.values()).sort((a, b) => {
+        // Sort by complete taxonomy hierarchy
+        const aKey = `${a.kingdom || ''}-${a.phylum || ''}-${a.class || ''}-${a.order || ''}-${a.species || ''}`;
+        const bKey = `${b.kingdom || ''}-${b.phylum || ''}-${b.class || ''}-${b.order || ''}-${b.species || ''}`;
+        return aKey.localeCompare(bKey);
+    });
+
     const csvContent = [
-        ['Kingdom', 'Phylum', 'Class', 'Order', 'Species', 'TaxonID'],
+        ['Kingdom', 'Phylum', 'Class', 'Order', 'Species'],
         ...sortedSpecies.map(species => [
-            species.kingdom,
-            species.phylum,
-            species.class,
-            species.order,
-            species.species,
-            species.taxonId
+            species.kingdom || 'Animalia',
+            species.phylum || '-',
+            species.class || '-',
+            species.order || '-',
+            species.species || '-'
         ])
     ].map(row => row.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'species_list.csv';
+    link.download = 'unique_species_list.csv';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
