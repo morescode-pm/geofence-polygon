@@ -254,7 +254,7 @@ async function displaySpecies(species, total = null, isAppending = false) {
         speciesHeader.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <span>0 Species found within Geofence</span>
-                <div class="btn-group">
+                <div class="d-flex gap-2">
                     <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
                 </div>
             </div>
@@ -287,8 +287,8 @@ async function displaySpecies(species, total = null, isAppending = false) {
     const uniqueSpeciesArray = Array.from(uniqueSpecies.values());
     console.log(`Unique species after deduplication: ${uniqueSpeciesArray.length}`);
     
-    // Calculate total occurrences processed
-    const processedOccurrences = currentOffset + (isAppending ? 1000 : 0);
+    // Calculate total occurrences processed - start with 1000 for initial load
+    const processedOccurrences = isAppending ? currentOffset + 1000 : 1000;
     
     // Create the base header content
     const baseHeaderContent = `
@@ -329,25 +329,24 @@ async function displaySpecies(species, total = null, isAppending = false) {
         return 0;
     });
 
+    // If appending, clear all existing items to rebuild the list
+    if (isAppending) {
+        const existingItems = speciesList.querySelectorAll('.species-item, .taxonomy-group-header');
+        existingItems.forEach(item => item.remove());
+    }
+
     // Track current class
     let currentClass = '';
 
     // Display species
     sortedSpecies.forEach(species => {
-        // Only add new elements if we're appending and this is a new species
-        if (isAppending && document.querySelector(`[data-taxon-key="${species.taxonKey}"]`)) {
-            return;
-        }
-
         // Check if we need to add a class header
         if (species.class !== currentClass) {
-            if (!document.querySelector(`[data-class-header="${species.class}"]`)) {
-                const groupHeader = document.createElement('div');
-                groupHeader.className = 'taxonomy-group-header';
-                groupHeader.setAttribute('data-class-header', species.class);
-                groupHeader.innerHTML = `Class: ${species.class || '-'}`;
-                speciesList.appendChild(groupHeader);
-            }
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'taxonomy-group-header';
+            groupHeader.setAttribute('data-class-header', species.class);
+            groupHeader.innerHTML = `Class: ${species.class || '-'}`;
+            speciesList.appendChild(groupHeader);
             currentClass = species.class;
         }
 
