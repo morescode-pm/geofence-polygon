@@ -195,7 +195,12 @@ function displaySpecies(species) {
     
     if (!species || species.length === 0) {
         console.log('No species data to display');
-        speciesHeader.textContent = '0 Species found within Geofence';
+        speciesHeader.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <span>0 Species found within Geofence:</span>
+                <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+            </div>
+        `;
         speciesHeader.classList.remove('d-none');
         speciesList.innerHTML = '<div class="species-item">No species found in this area.</div>';
         return;
@@ -216,7 +221,12 @@ function displaySpecies(species) {
     console.log(`Unique species after deduplication: ${uniqueSpeciesArray.length}`);
     
     // Update header with count
-    speciesHeader.textContent = `${uniqueSpeciesArray.length} Species found within Geofence`;
+    speciesHeader.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <span>${uniqueSpeciesArray.length} Species found within Geofence:</span>
+            <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+        </div>
+    `;
     speciesHeader.classList.remove('d-none');
     
     // Clear existing list
@@ -232,10 +242,13 @@ function displaySpecies(species) {
         const taxonId = species.taxonKey || 'N/A';
         
         speciesItem.innerHTML = `
-            <strong>${commonName}</strong><br>
-            <em>${scientificName}</em><br>
-            <small>Taxonomy: ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}</small><br>
-            <small>Taxon ID: ${taxonId}</small>
+            <div class="species-item-content">
+                <span class="species-name">${commonName === scientificName ? `<em>${scientificName}</em>` : `${commonName} (<em>${scientificName}</em>)`}</span>
+                <span class="species-taxonomy">
+                    ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}
+                    <small class="text-muted ms-2">ID: ${taxonId}</small>
+                </span>
+            </div>
         `;
         
         speciesList.appendChild(speciesItem);

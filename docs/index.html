@@ -58,12 +58,16 @@
                                 <button class="btn btn-primary" onclick="searchSpecies()">Search Species in Polygon</button>
                                 <button class="btn btn-success" onclick="saveGeofence()">Save Current Geofence</button>
                                 <button class="btn btn-secondary" onclick="showLoadGeofenceModal()">Load Geofence</button>
-                                <button class="btn btn-info" onclick="downloadSpeciesList()">Download Species List</button>
                             </div>
                         </div>
                     </div>
                     <div class="species-list-container">
-                        <div class="species-list-header d-none">Kingdom Animalia found within Geofence:</div>
+                        <div class="species-list-header d-none">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Kingdom Animalia found within Geofence:</span>
+                                <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+                            </div>
+                        </div>
                         <div id="speciesList" class="species-list"></div>
                     </div>
                 </div>
