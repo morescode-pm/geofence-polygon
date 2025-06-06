@@ -191,7 +191,8 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
         offset: offset,
         kingdomKey: '1', // Animalia
         hasCoordinate: 'true',
-        status: 'ACCEPTED'
+        status: 'ACCEPTED',
+        phylumKey: '44' // Include chordata
     });
 
     try {
@@ -408,11 +409,14 @@ async function loadMoreSpecies() {
     }
     
     isLoadingMore = true;
+    let timeoutId;
     
     try {
         let newSpecies = [];
         let batchOffset = currentOffset;
         const batchSize = 1000;
+        const maxRetries = 3;
+        const maxTimePerBatch = 10000; // 10 seconds timeout per batch
         const existingSpeciesIds = new Set(
             Array.from(document.querySelectorAll('.species-item'))
                 .map(el => el.getAttribute('data-taxon-key'))
@@ -420,38 +424,81 @@ async function loadMoreSpecies() {
 
         // Keep fetching until we have at least 100 new unique species
         while (newSpecies.length < 100) {
-            const result = await getSpeciesInPolygon(currentPolygonCoords, batchOffset + batchSize, batchSize);
-            
-            // If no more results, break
-            if (!result.species || result.species.length === 0) {
-                break;
+            let retryCount = 0;
+            let batchSuccess = false;
+
+            while (retryCount < maxRetries && !batchSuccess) {
+                try {
+                    // Create a promise that rejects after timeout
+                    const timeoutPromise = new Promise((_, reject) => {
+                        timeoutId = setTimeout(() => {
+                            reject(new Error('Request timed out'));
+                        }, maxTimePerBatch);
+                    });
+
+                    // Race between the actual request and the timeout
+                    const result = await Promise.race([
+                        getSpeciesInPolygon(currentPolygonCoords, batchOffset + batchSize, batchSize),
+                        timeoutPromise
+                    ]);
+
+                    // Clear timeout if request succeeded
+                    clearTimeout(timeoutId);
+                    
+                    // If no more results, break both loops
+                    if (!result.species || result.species.length === 0) {
+                        batchSuccess = true;
+                        break;
+                    }
+
+                    // Filter out species we've already seen
+                    const uniqueNewSpecies = result.species.filter(species => 
+                        !existingSpeciesIds.has(species.taxonKey?.toString())
+                    );
+
+                    newSpecies = newSpecies.concat(uniqueNewSpecies);
+                    batchOffset += batchSize;
+                    batchSuccess = true;
+
+                    // Update button text to show progress
+                    if (loadMoreBtn) {
+                        loadMoreBtn.innerHTML = `
+                            <div style="display: inline-flex; align-items: center;">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.8rem; height: 0.8rem; border-width: 0.1rem; margin-right: 8px;"></span>
+                                Loading... (${newSpecies.length} new species found)
+                            </div>
+                        `;
+                    }
+
+                    // If we've fetched all available occurrences, break both loops
+                    if (batchOffset >= result.total) {
+                        break;
+                    }
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.error(`Batch retry ${retryCount + 1} failed:`, error);
+                    retryCount++;
+                    
+                    // If we've exhausted retries, increment offset anyway to avoid getting stuck
+                    if (retryCount === maxRetries) {
+                        console.log('Max retries reached, incrementing offset to avoid getting stuck');
+                        batchOffset += batchSize;
+                        toastr.warning('Some species may have been skipped due to a temporary error');
+                    } else {
+                        // Wait before retrying (exponential backoff)
+                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+                    }
+                }
             }
 
-            // Filter out species we've already seen
-            const uniqueNewSpecies = result.species.filter(species => 
-                !existingSpeciesIds.has(species.taxonKey?.toString())
-            );
-
-            newSpecies = newSpecies.concat(uniqueNewSpecies);
-            batchOffset += batchSize;
-
-            // Update button text to show progress
-            if (loadMoreBtn) {
-                loadMoreBtn.innerHTML = `
-                    <div style="display: inline-flex; align-items: center;">
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.8rem; height: 0.8rem; border-width: 0.1rem; margin-right: 8px;"></span>
-                        Loading... (${newSpecies.length} new species found)
-                    </div>
-                `;
-            }
-
-            // If we've fetched all available occurrences, break
-            if (batchOffset >= result.total) {
+            // If the inner loop failed all retries, break the outer loop
+            if (!batchSuccess && retryCount === maxRetries) {
                 break;
             }
         }
 
-        // Update the current offset
+        // Update the current offset regardless of errors
         currentOffset = batchOffset;
         
         // Display the new species
@@ -462,9 +509,13 @@ async function loadMoreSpecies() {
             toastr.info('No more new species found in the selected area');
         }
     } catch (error) {
-        console.error('Error loading more species:', error);
-        toastr.error('Error loading more species');
+        console.error('Error in loadMoreSpecies:', error);
+        toastr.error('Error loading more species. You can try again.');
+        
+        // Increment offset even on error to prevent getting stuck
+        currentOffset += 1000;
     } finally {
+        clearTimeout(timeoutId);
         isLoadingMore = false;
         if (loadMoreBtn) {
             loadMoreBtn.disabled = false;
@@ -582,6 +633,10 @@ async function searchSpecies() {
     }
 
     showLoading();
+    const loadingMsg = document.querySelector('.loading-message');
+    if (loadingMsg) {
+        loadingMsg.textContent = 'Initializing species search...';
+    }
     try {
         // Get coordinates from the polygon
         const coords = currentPolygon.getLatLngs()[0].map(latLng => [latLng.lat, latLng.lng]);
@@ -596,15 +651,94 @@ async function searchSpecies() {
         currentOffset = 0;
         currentPolygonCoords = coords;
         
-        // Get initial species data
-        console.log('Fetching species data for polygon...');
-        const result = await getSpeciesInPolygon(coords);
-        totalOccurrences = result.total;
+        let allSpecies = [];
+        let batchOffset = 0;
+        const batchSize = 1000;
+        let timeoutId;
+        const maxRetries = 3;
+        const maxTimePerBatch = 30000; // 30 seconds timeout per batch
+
+        // Keep fetching until we have at least 100 species
+        while (allSpecies.length < 100) {
+            let retryCount = 0;
+            let batchSuccess = false;
+
+            while (retryCount < maxRetries && !batchSuccess) {
+                try {
+                    // Create a promise that rejects after timeout
+                    const timeoutPromise = new Promise((_, reject) => {
+                        timeoutId = setTimeout(() => {
+                            reject(new Error('Request timed out'));
+                        }, maxTimePerBatch);
+                    });
+
+                    // Race between the actual request and the timeout
+                    const result = await Promise.race([
+                        getSpeciesInPolygon(coords, batchOffset, batchSize),
+                        timeoutPromise
+                    ]);
+
+                    // Clear timeout if request succeeded
+                    clearTimeout(timeoutId);
+
+                    // Update loading message
+                    if (loadingMsg) {
+                        loadingMsg.textContent = `Searching for species... (${allSpecies.length} found so far)`;
+                    }
+
+                    if (!result.species || result.species.length === 0) {
+                        batchSuccess = true;
+                        break;
+                    }
+
+                    totalOccurrences = result.total;
+                    
+                    // Add new unique species
+                    const uniqueNewSpecies = result.species.filter(species => 
+                        !allSpecies.some(s => s.taxonKey === species.taxonKey)
+                    );
+                    allSpecies = allSpecies.concat(uniqueNewSpecies);
+                    batchOffset += batchSize;
+                    batchSuccess = true;
+
+                    // If we've fetched all available occurrences, break both loops
+                    if (batchOffset >= result.total) {
+                        break;
+                    }
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.error(`Batch retry ${retryCount + 1} failed:`, error);
+                    retryCount++;
+                    
+                    if (retryCount === maxRetries) {
+                        console.log('Max retries reached, incrementing offset to avoid getting stuck');
+                        batchOffset += batchSize;
+                        toastr.warning('Some species may have been skipped due to a temporary error');
+                        break;
+                    } else {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+                    }
+                }
+            }
+
+            // Break if we can't get more results
+            if (!batchSuccess && retryCount === maxRetries) {
+                break;
+            }
+        }
+
+        // Update current offset for "Load More" functionality
+        currentOffset = batchOffset;
         
-        // Display species list with load more button
-        await displaySpecies(result.species, result.total);
+        // Display all species found
+        await displaySpecies(allSpecies, totalOccurrences);
         
-        toastr.success('Species search completed');
+        if (allSpecies.length > 0) {
+            toastr.success(`Found ${allSpecies.length} species`);
+        } else {
+            toastr.warning('No species found in the selected area');
+        }
     } catch (error) {
         console.error('Error:', error);
         toastr.error('Error searching for species');
