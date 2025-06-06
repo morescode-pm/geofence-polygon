@@ -52,6 +52,10 @@ map.addControl(drawControl);
 // Global variables
 let currentPolygon = null;
 let lastSpeciesData = null;
+let isLoadingMore = false;
+let currentOffset = 0;
+let totalOccurrences = 0;
+let currentPolygonCoords = null;
 
 // Configure toastr
 toastr.options = {
@@ -117,8 +121,83 @@ async function searchLocation() {
     }
 }
 
+// Function to get the most common name for a species
+async function getMostCommonName(taxonKey, countryCode = null) {
+    try {
+        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames`);
+        const data = await response.json();
+        
+        if (data && data.results && data.results.length > 0) {
+            // First try to find an English name for the specific country
+            if (countryCode) {
+                const countryEnglishName = data.results.find(n => 
+                    n.language === 'eng' && n.countryCode === countryCode);
+                if (countryEnglishName) return countryEnglishName.vernacularName;
+            }
+
+            // Then try to find any English name
+            const englishNames = data.results.filter(n => n.language === 'eng');
+            if (englishNames.length > 0) {
+                // Sort by preferred count and return the most preferred English name
+                const sortedEnglishNames = englishNames.sort((a, b) => 
+                    (b.preferredCount || 0) - (a.preferredCount || 0));
+                return sortedEnglishNames[0].vernacularName;
+            }
+
+            // If no English names, try to find a name for the specific country
+            if (countryCode) {
+                const countryNames = data.results.filter(n => n.countryCode === countryCode);
+                if (countryNames.length > 0) {
+                    // Sort by preferred count and return the most preferred country name
+                    const sortedCountryNames = countryNames.sort((a, b) => 
+                        (b.preferredCount || 0) - (a.preferredCount || 0));
+                    return sortedCountryNames[0].vernacularName;
+                }
+            }
+
+            // Finally, just take the most preferred name that's not German
+            const nonGermanNames = data.results.filter(n => n.language !== 'deu');
+            if (nonGermanNames.length > 0) {
+                const sortedNames = nonGermanNames.sort((a, b) => 
+                    (b.preferredCount || 0) - (a.preferredCount || 0));
+                return sortedNames[0].vernacularName;
+            }
+
+            // If all else fails, take the most preferred name
+            const sortedNames = data.results.sort((a, b) => 
+                (b.preferredCount || 0) - (a.preferredCount || 0));
+            return sortedNames[0].vernacularName;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching vernacular name:', error);
+        return null;
+    }
+}
+
+// Function to batch fetch common names
+async function fetchCommonNamesForBatch(species, countryCode = null) {
+    const batchPromises = species.map(async (species) => {
+        if (!species.mostCommonName) {  // Only fetch if we don't have it yet
+            try {
+                const commonName = await getMostCommonName(species.taxonKey, countryCode);
+                return {
+                    ...species,
+                    mostCommonName: commonName
+                };
+            } catch (error) {
+                console.error(`Error fetching common name for ${species.scientificName}:`, error);
+                return species;
+            }
+        }
+        return species;
+    });
+
+    return Promise.all(batchPromises);
+}
+
 // Function to get species in polygon from GBIF
-async function getSpeciesInPolygon(polygonCoords) {
+async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
     // Format polygon coordinates for GBIF
     const polygonStr = 'POLYGON((' + 
         polygonCoords.map(coord => `${coord[1]} ${coord[0]}`).join(',') +
@@ -126,56 +205,73 @@ async function getSpeciesInPolygon(polygonCoords) {
 
     const params = new URLSearchParams({
         geometry: polygonStr,
-        limit: 300,
+        limit: limit,
+        offset: offset,
         kingdomKey: '1', // Animalia
         hasCoordinate: 'true',
-        status: 'ACCEPTED'
+        status: 'ACCEPTED',
+        phylumKey: '44' // Include chordata
     });
 
-    const speciesData = [];
-    const processedTaxa = new Set();
-    let offset = 0;
-    const maxRecords = 1000;
+    try {
+        console.log(`Fetching GBIF data with offset ${offset}, limit ${limit}`);
+        const response = await fetch(`https://api.gbif.org/v1/occurrence/search?${params}`);
+        const data = await response.json();
 
-    while (offset < maxRecords) {
-        try {
-            const response = await fetch(`https://api.gbif.org/v1/occurrence/search?${params}&offset=${offset}`);
-            const data = await response.json();
-
-            if (!data.results || data.results.length === 0) break;
-
-            console.log(`Fetched ${data.results.length} results from GBIF`);
-
-            for (const result of data.results) {
-                const taxonId = result.taxonKey;
-                if (taxonId && 
-                    result.kingdom === 'Animalia' && 
-                    !processedTaxa.has(taxonId)) {
-                    
-                    speciesData.push({
-                        scientificName: result.scientificName || 'Unknown species',
-                        vernacularName: result.vernacularName || result.scientificName || 'Unknown species',
-                        taxonKey: result.taxonKey,
-                        kingdom: result.kingdom || 'Animalia',
-                        phylum: result.phylum || '-',
-                        class: result.class || '-',
-                        order: result.order || '-',
-                        species: result.species || result.scientificName || '-'
-                    });
-                    processedTaxa.add(taxonId);
-                }
-            }
-
-            offset += 300;
-            await new Promise(resolve => setTimeout(resolve, 100)); // Be nice to the API
-        } catch (error) {
-            console.error('Error fetching GBIF data:', error);
-            break;
+        if (!data.results || data.results.length === 0) {
+            console.log('No results returned from GBIF');
+            return { species: [], total: data.count || 0 };
         }
-    }
 
-    console.log(`Total species data before deduplication: ${speciesData.length}`);
-    return speciesData;
+        // Get the most common country code from the results
+        const countryCounts = {};
+        data.results.forEach(result => {
+            if (result.countryCode) {
+                countryCounts[result.countryCode] = (countryCounts[result.countryCode] || 0) + 1;
+            }
+        });
+        const mostCommonCountry = Object.entries(countryCounts)
+            .sort(([,a], [,b]) => b - a)[0]?.[0] || null;
+
+        if (offset === 0) {
+            console.log(`Total occurrences found in area: ${data.count}`);
+            console.log(`Most common country in area: ${mostCommonCountry || 'unknown'}`);
+            toastr.info(`Found ${data.count.toLocaleString()} occurrences in the selected area`);
+        }
+
+        const speciesData = [];
+        const processedTaxa = new Set();
+
+        for (const result of data.results) {
+            const taxonId = result.taxonKey;
+            if (taxonId && 
+                result.kingdom === 'Animalia' && 
+                !processedTaxa.has(taxonId)) {
+                
+                speciesData.push({
+                    scientificName: result.scientificName || 'Unknown species',
+                    vernacularName: result.vernacularName || result.scientificName || 'Unknown species',
+                    taxonKey: result.taxonKey,
+                    kingdom: result.kingdom || 'Animalia',
+                    phylum: result.phylum || '-',
+                    class: result.class || '-',
+                    order: result.order || '-',
+                    species: result.species || result.scientificName || '-',
+                    countryCode: mostCommonCountry
+                });
+                processedTaxa.add(taxonId);
+            }
+        }
+
+        return { 
+            species: speciesData, 
+            total: data.count || 0,
+            countryCode: mostCommonCountry
+        };
+    } catch (error) {
+        console.error('Error fetching GBIF data:', error);
+        throw error;
+    }
 }
 
 // Function to sort species data
@@ -188,34 +284,8 @@ function sortSpeciesData(speciesData) {
     });
 }
 
-// Function to get the most common vernacular name for a species
-async function getMostCommonName(taxonKey) {
-    try {
-        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames`);
-        const data = await response.json();
-        
-        if (data && data.results && data.results.length > 0) {
-            // Sort by language (prioritize English) and preference count
-            const sortedNames = data.results.sort((a, b) => {
-                // Prioritize English names
-                if (a.language === 'eng' && b.language !== 'eng') return -1;
-                if (b.language === 'eng' && a.language !== 'eng') return 1;
-                
-                // Then sort by preference count if available
-                return (b.preferredCount || 0) - (a.preferredCount || 0);
-            });
-            
-            return sortedNames[0].vernacularName;
-        }
-        return null;
-    } catch (error) {
-        console.error('Error fetching vernacular name:', error);
-        return null;
-    }
-}
-
-// Function to display species
-async function displaySpecies(species) {
+// Function to display species with load more button
+async function displaySpecies(species, total = null, isAppending = false) {
     console.log('Displaying species data:', species);
     const speciesList = document.getElementById('speciesList');
     const speciesHeader = document.querySelector('.species-list-header');
@@ -224,8 +294,10 @@ async function displaySpecies(species) {
         console.log('No species data to display');
         speciesHeader.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
-                <span>0 Species found within Geofence:</span>
-                <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Unique Species List</button>
+                <span>0 Species found within Geofence</span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+                </div>
             </div>
         `;
         speciesHeader.classList.remove('d-none');
@@ -236,8 +308,17 @@ async function displaySpecies(species) {
     // Create a Map to store unique species by taxonKey
     const uniqueSpecies = new Map();
     
+    // If appending, include existing species from lastSpeciesData
+    if (isAppending && lastSpeciesData) {
+        lastSpeciesData.forEach(s => {
+            if (!uniqueSpecies.has(s.taxonKey)) {
+                uniqueSpecies.set(s.taxonKey, s);
+            }
+        });
+    }
+    
+    // Add new species
     species.forEach(s => {
-        // Use taxonKey as the unique identifier
         if (!uniqueSpecies.has(s.taxonKey)) {
             uniqueSpecies.set(s.taxonKey, s);
         }
@@ -247,32 +328,37 @@ async function displaySpecies(species) {
     const uniqueSpeciesArray = Array.from(uniqueSpecies.values());
     console.log(`Unique species after deduplication: ${uniqueSpeciesArray.length}`);
     
-    // Update header with count
-    speciesHeader.innerHTML = `
+    // Calculate total occurrences processed - start with 1000 for initial load
+    const processedOccurrences = isAppending ? currentOffset + 1000 : 1000;
+    
+    // Create the base header content
+    const baseHeaderContent = `
         <div class="d-flex justify-content-between align-items-center">
-            <span>${uniqueSpeciesArray.length} Species found within Geofence:</span>
-            <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Unique Species List</button>
+            <span>${uniqueSpeciesArray.length} Species found within Geofence${total ? ` (${processedOccurrences.toLocaleString()} occurrences processed)` : ''}</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+                ${total && currentOffset < total ? 
+                    `<button class="btn btn-sm btn-primary" id="loadMoreBtn" onclick="loadMoreSpecies()" style="min-width: 120px;">
+                        Load More (${(total - currentOffset).toLocaleString()} remaining)
+                    </button>` : ''}
+            </div>
         </div>
     `;
+    
+    // Set initial header content
+    speciesHeader.innerHTML = baseHeaderContent;
     speciesHeader.classList.remove('d-none');
     
-    // Clear existing list
-    speciesList.innerHTML = '<div class="species-item">Loading common names...</div>';
+    if (!isAppending) {
+        speciesList.innerHTML = '';
+    }
+
+    // Fetch common names for the new batch
+    console.log('Fetching common names for species...');
+    const speciesWithCommonNames = await fetchCommonNamesForBatch(uniqueSpeciesArray, species[0]?.countryCode);
     
-    // Fetch common names for all species
-    const speciesWithCommonNames = await Promise.all(
-        uniqueSpeciesArray.map(async (species) => {
-            const commonName = await getMostCommonName(species.taxonKey);
-            return {
-                ...species,
-                mostCommonName: commonName
-            };
-        })
-    );
-    
-    // Sort species by taxonomic hierarchy
+    // Sort and display species
     const sortedSpecies = speciesWithCommonNames.sort((a, b) => {
-        // Compare each level of taxonomy in order
         const levels = ['kingdom', 'phylum', 'class', 'order', 'species'];
         for (const level of levels) {
             const aValue = (a[level] || '').toLowerCase();
@@ -284,18 +370,22 @@ async function displaySpecies(species) {
         return 0;
     });
 
-    // Clear loading message
-    speciesList.innerHTML = '';
-    
+    // If appending, clear all existing items to rebuild the list
+    if (isAppending) {
+        const existingItems = speciesList.querySelectorAll('.species-item, .taxonomy-group-header');
+        existingItems.forEach(item => item.remove());
+    }
+
     // Track current class
     let currentClass = '';
 
-    // Display unique species with common names
+    // Display species
     sortedSpecies.forEach(species => {
         // Check if we need to add a class header
         if (species.class !== currentClass) {
             const groupHeader = document.createElement('div');
             groupHeader.className = 'taxonomy-group-header';
+            groupHeader.setAttribute('data-class-header', species.class);
             groupHeader.innerHTML = `Class: ${species.class || '-'}`;
             speciesList.appendChild(groupHeader);
             currentClass = species.class;
@@ -303,12 +393,13 @@ async function displaySpecies(species) {
 
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
+        speciesItem.setAttribute('data-taxon-key', species.taxonKey);
         
         speciesItem.innerHTML = `
             <div class="species-item-content">
                 <span class="species-name">${species.mostCommonName || species.vernacularName || species.scientificName}</span>
                 <span class="species-taxonomy">
-                    ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order} > ${species.species} > ${species.taxonKey}
+                    ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order} > ${species.species}
                 </span>
             </div>
         `;
@@ -316,8 +407,139 @@ async function displaySpecies(species) {
         speciesList.appendChild(speciesItem);
     });
 
-    // Store the species with common names for the download function
+    // Store the species data for download
     lastSpeciesData = sortedSpecies;
+}
+
+// Function to load more species
+async function loadMoreSpecies() {
+    if (isLoadingMore || !currentPolygonCoords) return;
+    
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    if (loadMoreBtn) {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.innerHTML = `
+            <div style="display: inline-flex; align-items: center;">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.8rem; height: 0.8rem; border-width: 0.1rem; margin-right: 8px;"></span>
+                Loading...
+            </div>
+        `;
+    }
+    
+    isLoadingMore = true;
+    let timeoutId;
+    
+    try {
+        let newSpecies = [];
+        let batchOffset = currentOffset;
+        const batchSize = 1000;
+        const maxRetries = 3;
+        const maxTimePerBatch = 10000; // 10 seconds timeout per batch
+        const existingSpeciesIds = new Set(
+            Array.from(document.querySelectorAll('.species-item'))
+                .map(el => el.getAttribute('data-taxon-key'))
+        );
+
+        // Keep fetching until we have at least 100 new unique species
+        while (newSpecies.length < 100) {
+            let retryCount = 0;
+            let batchSuccess = false;
+
+            while (retryCount < maxRetries && !batchSuccess) {
+                try {
+                    // Create a promise that rejects after timeout
+                    const timeoutPromise = new Promise((_, reject) => {
+                        timeoutId = setTimeout(() => {
+                            reject(new Error('Request timed out'));
+                        }, maxTimePerBatch);
+                    });
+
+                    // Race between the actual request and the timeout
+                    const result = await Promise.race([
+                        getSpeciesInPolygon(currentPolygonCoords, batchOffset + batchSize, batchSize),
+                        timeoutPromise
+                    ]);
+
+                    // Clear timeout if request succeeded
+                    clearTimeout(timeoutId);
+                    
+                    // If no more results, break both loops
+                    if (!result.species || result.species.length === 0) {
+                        batchSuccess = true;
+                        break;
+                    }
+
+                    // Filter out species we've already seen
+                    const uniqueNewSpecies = result.species.filter(species => 
+                        !existingSpeciesIds.has(species.taxonKey?.toString())
+                    );
+
+                    newSpecies = newSpecies.concat(uniqueNewSpecies);
+                    batchOffset += batchSize;
+                    batchSuccess = true;
+
+                    // Update button text to show progress
+                    if (loadMoreBtn) {
+                        loadMoreBtn.innerHTML = `
+                            <div style="display: inline-flex; align-items: center;">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.8rem; height: 0.8rem; border-width: 0.1rem; margin-right: 8px;"></span>
+                                Loading... (${newSpecies.length} new species found)
+                            </div>
+                        `;
+                    }
+
+                    // If we've fetched all available occurrences, break both loops
+                    if (batchOffset >= result.total) {
+                        break;
+                    }
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.error(`Batch retry ${retryCount + 1} failed:`, error);
+                    retryCount++;
+                    
+                    // If we've exhausted retries, increment offset anyway to avoid getting stuck
+                    if (retryCount === maxRetries) {
+                        console.log('Max retries reached, incrementing offset to avoid getting stuck');
+                        batchOffset += batchSize;
+                        toastr.warning('Some species may have been skipped due to a temporary error');
+                    } else {
+                        // Wait before retrying (exponential backoff)
+                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+                    }
+                }
+            }
+
+            // If the inner loop failed all retries, break the outer loop
+            if (!batchSuccess && retryCount === maxRetries) {
+                break;
+            }
+        }
+
+        // Update the current offset regardless of errors
+        currentOffset = batchOffset;
+        
+        // Display the new species
+        if (newSpecies.length > 0) {
+            await displaySpecies(newSpecies, totalOccurrences, true);
+            toastr.success(`Loaded ${newSpecies.length} new species`);
+        } else {
+            toastr.info('No more new species found in the selected area');
+        }
+    } catch (error) {
+        console.error('Error in loadMoreSpecies:', error);
+        toastr.error('Error loading more species. You can try again.');
+        
+        // Increment offset even on error to prevent getting stuck
+        currentOffset += 1000;
+    } finally {
+        clearTimeout(timeoutId);
+        isLoadingMore = false;
+        if (loadMoreBtn) {
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.innerHTML = 'Load More';
+        }
+    }
 }
 
 // Initialize modal
@@ -421,7 +643,7 @@ function loadGeofence(index) {
     toastr.success(`Loaded geofence: ${polygon.name}`);
 }
 
-// Function to search for species in the current polygon
+// Update the searchSpecies function
 async function searchSpecies() {
     if (!currentPolygon) {
         toastr.error('Please draw a polygon first');
@@ -429,6 +651,10 @@ async function searchSpecies() {
     }
 
     showLoading();
+    const loadingMsg = document.querySelector('.loading-message');
+    if (loadingMsg) {
+        loadingMsg.textContent = 'Initializing species search...';
+    }
     try {
         // Get coordinates from the polygon
         const coords = currentPolygon.getLatLngs()[0].map(latLng => [latLng.lat, latLng.lng]);
@@ -439,16 +665,98 @@ async function searchSpecies() {
             coords.push(coords[0]);
         }
 
-        // Get species data
-        console.log('Fetching species data for polygon...');
-        lastSpeciesData = await getSpeciesInPolygon(coords);
-        console.log('Species data fetched:', lastSpeciesData);
-        const sortedSpecies = sortSpeciesData(lastSpeciesData);
+        // Reset pagination variables
+        currentOffset = 0;
+        currentPolygonCoords = coords;
         
-        // Display species list
-        await displaySpecies(sortedSpecies);
+        let allSpecies = [];
+        let batchOffset = 0;
+        const batchSize = 1000;
+        let timeoutId;
+        const maxRetries = 3;
+        const maxTimePerBatch = 30000; // 30 seconds timeout per batch
+
+        // Keep fetching until we have at least 100 species
+        while (allSpecies.length < 100) {
+            let retryCount = 0;
+            let batchSuccess = false;
+
+            while (retryCount < maxRetries && !batchSuccess) {
+                try {
+                    // Create a promise that rejects after timeout
+                    const timeoutPromise = new Promise((_, reject) => {
+                        timeoutId = setTimeout(() => {
+                            reject(new Error('Request timed out'));
+                        }, maxTimePerBatch);
+                    });
+
+                    // Race between the actual request and the timeout
+                    const result = await Promise.race([
+                        getSpeciesInPolygon(coords, batchOffset, batchSize),
+                        timeoutPromise
+                    ]);
+
+                    // Clear timeout if request succeeded
+                    clearTimeout(timeoutId);
+
+                    // Update loading message
+                    if (loadingMsg) {
+                        loadingMsg.textContent = `Searching for species... (${allSpecies.length} found so far)`;
+                    }
+
+                    if (!result.species || result.species.length === 0) {
+                        batchSuccess = true;
+                        break;
+                    }
+
+                    totalOccurrences = result.total;
+                    
+                    // Add new unique species
+                    const uniqueNewSpecies = result.species.filter(species => 
+                        !allSpecies.some(s => s.taxonKey === species.taxonKey)
+                    );
+                    allSpecies = allSpecies.concat(uniqueNewSpecies);
+                    batchOffset += batchSize;
+                    batchSuccess = true;
+
+                    // If we've fetched all available occurrences, break both loops
+                    if (batchOffset >= result.total) {
+                        break;
+                    }
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.error(`Batch retry ${retryCount + 1} failed:`, error);
+                    retryCount++;
+                    
+                    if (retryCount === maxRetries) {
+                        console.log('Max retries reached, incrementing offset to avoid getting stuck');
+                        batchOffset += batchSize;
+                        toastr.warning('Some species may have been skipped due to a temporary error');
+                        break;
+                    } else {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+                    }
+                }
+            }
+
+            // Break if we can't get more results
+            if (!batchSuccess && retryCount === maxRetries) {
+                break;
+            }
+        }
+
+        // Update current offset for "Load More" functionality
+        currentOffset = batchOffset;
         
-        toastr.success('Species search completed');
+        // Display all species found
+        await displaySpecies(allSpecies, totalOccurrences);
+        
+        if (allSpecies.length > 0) {
+            toastr.success(`Found ${allSpecies.length} species`);
+        } else {
+            toastr.warning('No species found in the selected area');
+        }
     } catch (error) {
         console.error('Error:', error);
         toastr.error('Error searching for species');
