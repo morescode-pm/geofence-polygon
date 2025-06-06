@@ -410,13 +410,57 @@ async function loadMoreSpecies() {
     isLoadingMore = true;
     
     try {
-        const result = await getSpeciesInPolygon(currentPolygonCoords, currentOffset + 1000);
-        currentOffset += 1000;
+        let newSpecies = [];
+        let batchOffset = currentOffset;
+        const batchSize = 1000;
+        const existingSpeciesIds = new Set(
+            Array.from(document.querySelectorAll('.species-item'))
+                .map(el => el.getAttribute('data-taxon-key'))
+        );
+
+        // Keep fetching until we have at least 100 new unique species
+        while (newSpecies.length < 100) {
+            const result = await getSpeciesInPolygon(currentPolygonCoords, batchOffset + batchSize, batchSize);
+            
+            // If no more results, break
+            if (!result.species || result.species.length === 0) {
+                break;
+            }
+
+            // Filter out species we've already seen
+            const uniqueNewSpecies = result.species.filter(species => 
+                !existingSpeciesIds.has(species.taxonKey?.toString())
+            );
+
+            newSpecies = newSpecies.concat(uniqueNewSpecies);
+            batchOffset += batchSize;
+
+            // Update button text to show progress
+            if (loadMoreBtn) {
+                loadMoreBtn.innerHTML = `
+                    <div style="display: inline-flex; align-items: center;">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.8rem; height: 0.8rem; border-width: 0.1rem; margin-right: 8px;"></span>
+                        Loading... (${newSpecies.length} new species found)
+                    </div>
+                `;
+            }
+
+            // If we've fetched all available occurrences, break
+            if (batchOffset >= result.total) {
+                break;
+            }
+        }
+
+        // Update the current offset
+        currentOffset = batchOffset;
         
-        // Merge new species with existing ones
-        await displaySpecies(result.species, result.total, true);
-        
-        toastr.success('More species loaded successfully');
+        // Display the new species
+        if (newSpecies.length > 0) {
+            await displaySpecies(newSpecies, totalOccurrences, true);
+            toastr.success(`Loaded ${newSpecies.length} new species`);
+        } else {
+            toastr.info('No more new species found in the selected area');
+        }
     } catch (error) {
         console.error('Error loading more species:', error);
         toastr.error('Error loading more species');
@@ -424,6 +468,7 @@ async function loadMoreSpecies() {
         isLoadingMore = false;
         if (loadMoreBtn) {
             loadMoreBtn.disabled = false;
+            loadMoreBtn.innerHTML = 'Load More';
         }
     }
 }
