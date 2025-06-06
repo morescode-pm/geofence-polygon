@@ -1,16 +1,87 @@
 # Species Geofencing Tool
 
-A web-based tool that allows users to draw geofences on a map and discover species that have been observed within that area. The tool uses the GBIF (Global Biodiversity Information Facility) API to fetch species data.
+A web-based tool for drawing geofences and discovering species within the defined areas. This tool uses the GBIF (Global Biodiversity Information Facility) API to fetch species data within user-defined polygons.
 
 ## Features
 
-- Draw custom geofences on an interactive map
-- Search for locations to quickly navigate the map
-- Save geofences as GeoJSON files with visualizations
-- Get a list of animal species observed within the geofence
-- Export species lists as CSV files
-- Load previously saved geofences
-- Hierarchical sorting of species by taxonomic classification
+- Draw polygons on an interactive map
+- Search for locations by name
+- Save and load geofences using browser storage
+- Search for species within defined geofences
+- Download species lists as CSV files
+- Hierarchical sorting of species (Kingdom → Phylum → Class → Order → Species)
+- Modern, responsive user interface
+
+## Live Demo
+
+This application is hosted on GitHub Pages at: https://morescode-pm.github.io/geofence-polygon/
+
+## Technologies Used
+
+- HTML5, CSS3, and JavaScript
+- Leaflet.js for interactive maps
+- Bootstrap 5 for UI components
+- GBIF API for species data
+- OpenStreetMap for base map tiles
+- Browser LocalStorage for data persistence
+
+## Local Development
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/morescode-pm/geofence-polygon.git
+   cd geofence-polygon
+   ```
+
+2. Open the project in a web server:
+   - You can use any local web server, for example:
+     ```bash
+     python -m http.server
+     ```
+   - Or use the Live Server extension in Visual Studio Code
+
+3. Open your browser and navigate to `http://localhost:8000` (or the appropriate port)
+
+## API Usage
+
+This application uses the following external APIs:
+
+1. GBIF API
+   - Used for fetching species occurrence data
+   - Documentation: https://www.gbif.org/developer/summary
+
+2. Nominatim API
+   - Used for geocoding (converting location names to coordinates)
+   - Documentation: https://nominatim.org/release-docs/latest/api/Overview/
+
+Note: The application respects API rate limits and includes appropriate delays between requests.
+
+## Browser Support
+
+The application is compatible with modern browsers that support:
+- ES6+ JavaScript
+- LocalStorage API
+- Fetch API
+- CSS Grid and Flexbox
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- GBIF for providing biodiversity data
+- OpenStreetMap contributors for map data
+- Leaflet.js team for the mapping library
+- Bootstrap team for the UI framework
 
 ## Prerequisites
 
@@ -99,8 +170,4 @@ python app.py
   - Location search
   - Species data retrieval
 - Large geofences may take longer to process
-
-## Contributing
-
-Feel free to submit issues, fork the repository, and create pull requests for any improvements.
 

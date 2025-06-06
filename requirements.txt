@@ -1,9 +1,0 @@
-flask==3.0.2
-geopandas==0.14.3
-osmnx==1.9.1
-shapely==2.0.3
-contextily==1.4.0
-pandas==2.2.1
-geopy==2.4.1
-requests==2.31.0
-matplotlib==3.8.3
