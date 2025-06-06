@@ -135,17 +135,35 @@ async function getMostCommonName(taxonKey, countryCode = null) {
                 if (countryEnglishName) return countryEnglishName.vernacularName;
             }
 
-            // Then try to find any name for the specific country
-            if (countryCode) {
-                const countryName = data.results.find(n => n.countryCode === countryCode);
-                if (countryName) return countryName.vernacularName;
+            // Then try to find any English name
+            const englishNames = data.results.filter(n => n.language === 'eng');
+            if (englishNames.length > 0) {
+                // Sort by preferred count and return the most preferred English name
+                const sortedEnglishNames = englishNames.sort((a, b) => 
+                    (b.preferredCount || 0) - (a.preferredCount || 0));
+                return sortedEnglishNames[0].vernacularName;
             }
 
-            // Then try to find any English name
-            const englishName = data.results.find(n => n.language === 'eng');
-            if (englishName) return englishName.vernacularName;
+            // If no English names, try to find a name for the specific country
+            if (countryCode) {
+                const countryNames = data.results.filter(n => n.countryCode === countryCode);
+                if (countryNames.length > 0) {
+                    // Sort by preferred count and return the most preferred country name
+                    const sortedCountryNames = countryNames.sort((a, b) => 
+                        (b.preferredCount || 0) - (a.preferredCount || 0));
+                    return sortedCountryNames[0].vernacularName;
+                }
+            }
 
-            // Finally, just take the most preferred name
+            // Finally, just take the most preferred name that's not German
+            const nonGermanNames = data.results.filter(n => n.language !== 'deu');
+            if (nonGermanNames.length > 0) {
+                const sortedNames = nonGermanNames.sort((a, b) => 
+                    (b.preferredCount || 0) - (a.preferredCount || 0));
+                return sortedNames[0].vernacularName;
+            }
+
+            // If all else fails, take the most preferred name
             const sortedNames = data.results.sort((a, b) => 
                 (b.preferredCount || 0) - (a.preferredCount || 0));
             return sortedNames[0].vernacularName;
