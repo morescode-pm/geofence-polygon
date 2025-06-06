@@ -189,16 +189,25 @@ function sortSpeciesData(speciesData) {
 // Function to display species list
 function displaySpeciesList(speciesData) {
     const speciesList = document.getElementById('speciesList');
+    const speciesHeader = document.querySelector('.species-list-header');
     speciesList.innerHTML = '';
+
+    if (speciesData.length > 0) {
+        speciesHeader.classList.remove('d-none');
+    } else {
+        speciesHeader.classList.add('d-none');
+    }
 
     speciesData.forEach(species => {
         const div = document.createElement('div');
         div.className = 'species-item';
         div.innerHTML = `
-            <strong>${species.species}</strong><br>
-            <small>
+            <div class="species-name">
+                <strong>${species.species}</strong> (${species.taxonId})
+            </div>
+            <div class="species-taxonomy">
                 ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}
-            </small>
+            </div>
         `;
         speciesList.appendChild(div);
     });

@@ -3,120 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Species Geofencing Tool</title>
+    <title>Kingdom Animalia Species Geofencing Tool</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-        }
-        .content-container {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
-        #map {
-            flex: 1;
-            height: 100%;
-        }
-        .control-panel {
-            width: 400px;
-            padding: 20px;
-            background: white;
-            overflow-y: auto;
-            border-left: 1px solid #ddd;
-            height: calc(100vh - 56px);
-        }
-        .frozen-header {
-            position: sticky;
-            top: 0;
-            background: white;
-            z-index: 1000;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            margin-bottom: 15px;
-        }
-        .toast-container {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 9999;
-        }
-        .species-list {
-            margin-top: 15px;
-        }
-        .species-item {
-            margin-bottom: 8px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        .spinner-border {
-            width: 3rem;
-            height: 3rem;
-        }
-        .leaflet-control-container .leaflet-top {
-            top: 10px;
-        }
-        .leaflet-control-container .leaflet-left {
-            left: 10px;
-        }
-        .btn-group-vertical {
-            width: 100%;
-        }
-        .btn-group-vertical .btn {
-            margin-bottom: 5px;
-            text-align: left;
-        }
-    </style>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Species Geofencing Tool</a>
-        </div>
-    </nav>
+    <div class="app-container">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">Kingdom Animalia Species Geofencing Tool</a>
+            </div>
+        </nav>
 
-    <div class="content-container">
-        <div id="map"></div>
-        <div class="control-panel">
-            <div class="frozen-header">
-                <h5>Controls</h5>
-                <div class="mb-3">
-                    <input type="text" class="form-control mb-2" id="locationInput" placeholder="Enter location">
-                    <button class="btn btn-primary w-100" onclick="searchLocation()">Search Location</button>
+        <div class="instructions-container">
+            <div class="instructions-toggle collapsed" onclick="toggleInstructions()" role="button">
+                <span>Instructions</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="instructions-content collapsed" id="instructionsContent">
+                <div class="instructions">
+                    <p>Draw a polygon on the map to discover animal species observed in that area:</p>
+                    <ol>
+                        <li>Search for your location using the search box</li>
+                        <li>Click the polygon tool (<svg height="16" width="16" viewBox="0 0 24 24"><path fill="currentColor" d="M21,16V4H3V16H21M21,2A2,2 0 0,1 23,4V16A2,2 0 0,1 21,18H14L16,21V22H8V21L10,18H3A2,2 0 0,1 1,16V4A2,2 0 0,1 3,2H21Z"/></svg>) in the top-left corner to start drawing</li>
+                        <li>Click points on the map to create your polygon, double-click to finish</li>
+                        <li>Name your polygon and click "Save Geofence and Search" to find species</li>
+                    </ol>
+                    <p class="attribution">Species data provided by the Global Biodiversity Information Facility (GBIF) Occurrence API</p>
                 </div>
-                <div class="mb-3">
-                    <input type="text" class="form-control mb-2" id="polygonName" placeholder="Enter polygon name">
-                    <div class="btn-group-vertical">
-                        <button class="btn btn-success" onclick="saveGeofenceAndSearch()">Save Geofence and Search</button>
-                        <button class="btn btn-secondary" onclick="loadGeofence()">Load Geofence</button>
-                        <button class="btn btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+            </div>
+        </div>
+
+        <div class="content-container">
+            <div id="map"></div>
+            <div class="control-panel">
+                <div class="control-panel-toggle" onclick="toggleControlPanel()" role="button">
+                    <span class="toggle-icon">❯</span>
+                </div>
+                <div class="control-panel-content">
+                    <div class="frozen-header">
+                        <h5>Controls</h5>
+                        <div class="mb-3">
+                            <input type="text" class="form-control mb-2" id="locationInput" placeholder="Enter location">
+                            <button class="btn btn-primary w-100" onclick="searchLocation()">Search Location</button>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" class="form-control mb-2" id="polygonName" placeholder="Enter polygon name">
+                            <div class="btn-group-vertical">
+                                <button class="btn btn-success" onclick="saveGeofenceAndSearch()">Save Geofence and Search</button>
+                                <button class="btn btn-secondary" onclick="loadGeofence()">Load Geofence</button>
+                                <button class="btn btn-info" onclick="downloadSpeciesList()">Download Species List</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="species-list-container">
+                        <div class="species-list-header d-none">Kingdom Animalia found within Geofence:</div>
+                        <div id="speciesList" class="species-list"></div>
                     </div>
                 </div>
             </div>
-            <div id="speciesList" class="species-list"></div>
         </div>
     </div>
 
@@ -125,6 +73,43 @@
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>
+
+    <script>
+        function toggleInstructions() {
+            const content = document.getElementById('instructionsContent');
+            const toggle = document.querySelector('.instructions-toggle');
+            content.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+            
+            // Store the state in localStorage
+            localStorage.setItem('instructionsCollapsed', content.classList.contains('collapsed'));
+        }
+
+        function toggleControlPanel() {
+            const panel = document.querySelector('.control-panel');
+            panel.classList.toggle('collapsed');
+            
+            // Store the state in localStorage
+            localStorage.setItem('controlPanelCollapsed', panel.classList.contains('collapsed'));
+        }
+
+        // On page load, check if instructions were previously collapsed
+        document.addEventListener('DOMContentLoaded', function() {
+            const wasInstructionsCollapsed = localStorage.getItem('instructionsCollapsed') !== 'false';
+            if (wasInstructionsCollapsed) {
+                const content = document.getElementById('instructionsContent');
+                const toggle = document.querySelector('.instructions-toggle');
+                content.classList.add('collapsed');
+                toggle.classList.add('collapsed');
+            }
+
+            const wasControlPanelCollapsed = localStorage.getItem('controlPanelCollapsed') === 'true';
+            if (wasControlPanelCollapsed) {
+                const panel = document.querySelector('.control-panel');
+                panel.classList.add('collapsed');
+            }
+        });
+    </script>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
