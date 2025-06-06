@@ -270,11 +270,37 @@ async function displaySpecies(species) {
         })
     );
     
+    // Sort species by taxonomic hierarchy
+    const sortedSpecies = speciesWithCommonNames.sort((a, b) => {
+        // Compare each level of taxonomy in order
+        const levels = ['kingdom', 'phylum', 'class', 'order', 'species'];
+        for (const level of levels) {
+            const aValue = (a[level] || '').toLowerCase();
+            const bValue = (b[level] || '').toLowerCase();
+            if (aValue !== bValue) {
+                return aValue.localeCompare(bValue);
+            }
+        }
+        return 0;
+    });
+
     // Clear loading message
     speciesList.innerHTML = '';
     
+    // Track current class
+    let currentClass = '';
+
     // Display unique species with common names
-    speciesWithCommonNames.forEach(species => {
+    sortedSpecies.forEach(species => {
+        // Check if we need to add a class header
+        if (species.class !== currentClass) {
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'taxonomy-group-header';
+            groupHeader.innerHTML = `Class: ${species.class || '-'}`;
+            speciesList.appendChild(groupHeader);
+            currentClass = species.class;
+        }
+
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
         
@@ -291,7 +317,7 @@ async function displaySpecies(species) {
     });
 
     // Store the species with common names for the download function
-    lastSpeciesData = speciesWithCommonNames;
+    lastSpeciesData = sortedSpecies;
 }
 
 // Initialize modal
