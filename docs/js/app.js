@@ -121,6 +121,63 @@ async function searchLocation() {
     }
 }
 
+// Function to get the most common name for a species
+async function getMostCommonName(taxonKey, countryCode = null) {
+    try {
+        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames`);
+        const data = await response.json();
+        
+        if (data && data.results && data.results.length > 0) {
+            // First try to find an English name for the specific country
+            if (countryCode) {
+                const countryEnglishName = data.results.find(n => 
+                    n.language === 'eng' && n.countryCode === countryCode);
+                if (countryEnglishName) return countryEnglishName.vernacularName;
+            }
+
+            // Then try to find any name for the specific country
+            if (countryCode) {
+                const countryName = data.results.find(n => n.countryCode === countryCode);
+                if (countryName) return countryName.vernacularName;
+            }
+
+            // Then try to find any English name
+            const englishName = data.results.find(n => n.language === 'eng');
+            if (englishName) return englishName.vernacularName;
+
+            // Finally, just take the most preferred name
+            const sortedNames = data.results.sort((a, b) => 
+                (b.preferredCount || 0) - (a.preferredCount || 0));
+            return sortedNames[0].vernacularName;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching vernacular name:', error);
+        return null;
+    }
+}
+
+// Function to batch fetch common names
+async function fetchCommonNamesForBatch(species, countryCode = null) {
+    const batchPromises = species.map(async (species) => {
+        if (!species.mostCommonName) {  // Only fetch if we don't have it yet
+            try {
+                const commonName = await getMostCommonName(species.taxonKey, countryCode);
+                return {
+                    ...species,
+                    mostCommonName: commonName
+                };
+            } catch (error) {
+                console.error(`Error fetching common name for ${species.scientificName}:`, error);
+                return species;
+            }
+        }
+        return species;
+    });
+
+    return Promise.all(batchPromises);
+}
+
 // Function to get species in polygon from GBIF
 async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
     // Format polygon coordinates for GBIF
@@ -147,11 +204,21 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
             return { species: [], total: data.count || 0 };
         }
 
+        // Get the most common country code from the results
+        const countryCounts = {};
+        data.results.forEach(result => {
+            if (result.countryCode) {
+                countryCounts[result.countryCode] = (countryCounts[result.countryCode] || 0) + 1;
+            }
+        });
+        const mostCommonCountry = Object.entries(countryCounts)
+            .sort(([,a], [,b]) => b - a)[0]?.[0] || null;
+
         if (offset === 0) {
             console.log(`Total occurrences found in area: ${data.count}`);
+            console.log(`Most common country in area: ${mostCommonCountry || 'unknown'}`);
             toastr.info(`Found ${data.count.toLocaleString()} occurrences in the selected area`);
         }
-        console.log(`Received ${data.results.length} results from GBIF`);
 
         const speciesData = [];
         const processedTaxa = new Set();
@@ -170,7 +237,8 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
                     phylum: result.phylum || '-',
                     class: result.class || '-',
                     order: result.order || '-',
-                    species: result.species || result.scientificName || '-'
+                    species: result.species || result.scientificName || '-',
+                    countryCode: mostCommonCountry
                 });
                 processedTaxa.add(taxonId);
             }
@@ -178,7 +246,8 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
 
         return { 
             species: speciesData, 
-            total: data.count || 0 
+            total: data.count || 0,
+            countryCode: mostCommonCountry
         };
     } catch (error) {
         console.error('Error fetching GBIF data:', error);
@@ -194,53 +263,6 @@ function sortSpeciesData(speciesData) {
         }
         return 0;
     });
-}
-
-// Function to get the most common vernacular name for a species
-async function getMostCommonName(taxonKey) {
-    try {
-        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames`);
-        const data = await response.json();
-        
-        if (data && data.results && data.results.length > 0) {
-            // Sort by language (prioritize English) and preference count
-            const sortedNames = data.results.sort((a, b) => {
-                // Prioritize English names
-                if (a.language === 'eng' && b.language !== 'eng') return -1;
-                if (b.language === 'eng' && a.language !== 'eng') return 1;
-                
-                // Then sort by preference count if available
-                return (b.preferredCount || 0) - (a.preferredCount || 0);
-            });
-            
-            return sortedNames[0].vernacularName;
-        }
-        return null;
-    } catch (error) {
-        console.error('Error fetching vernacular name:', error);
-        return null;
-    }
-}
-
-// Function to batch fetch common names
-async function fetchCommonNamesForBatch(species) {
-    const batchPromises = species.map(async (species) => {
-        if (!species.mostCommonName) {  // Only fetch if we don't have it yet
-            try {
-                const commonName = await getMostCommonName(species.taxonKey);
-                return {
-                    ...species,
-                    mostCommonName: commonName
-                };
-            } catch (error) {
-                console.error(`Error fetching common name for ${species.scientificName}:`, error);
-                return species;
-            }
-        }
-        return species;
-    });
-
-    return Promise.all(batchPromises);
 }
 
 // Function to display species with load more button
@@ -314,7 +336,7 @@ async function displaySpecies(species, total = null, isAppending = false) {
 
     // Fetch common names for the new batch
     console.log('Fetching common names for species...');
-    const speciesWithCommonNames = await fetchCommonNamesForBatch(uniqueSpeciesArray);
+    const speciesWithCommonNames = await fetchCommonNamesForBatch(uniqueSpeciesArray, species[0]?.countryCode);
     
     // Sort and display species
     const sortedSpecies = speciesWithCommonNames.sort((a, b) => {
