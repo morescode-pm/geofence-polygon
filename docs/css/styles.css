@@ -21,6 +21,7 @@ body {
 
 .navbar {
     flex-shrink: 0;
+    margin-bottom: 0;
 }
 
 .instructions-container {
@@ -31,7 +32,7 @@ body {
 }
 
 .instructions-toggle {
-    padding: 8px 15px;
+    padding: 8px 20px;
     background-color: #e9ecef;
     border-bottom: 1px solid #ddd;
     cursor: pointer;
@@ -46,25 +47,26 @@ body {
 }
 
 .instructions {
-    padding: 15px;
-    margin-bottom: 0;
-    max-width: 1200px;
-    margin: 0 auto;
+    padding: 15px 20px;
+    margin: 0;
 }
 
 .instructions p {
     margin-bottom: 8px;
+    max-width: 800px;
 }
 
 .instructions ol {
-    margin-bottom: 8px;
+    margin: 0 0 8px 0;
     padding-left: 25px;
+    max-width: 800px;
 }
 
 .attribution {
     font-size: 0.9em;
     color: #666;
     font-style: italic;
+    margin: 0;
 }
 
 .instructions-content {
@@ -85,14 +87,14 @@ body {
 
 #map {
     width: 50%;
-    height: calc(100vh - 180px);
+    height: calc(100vh - 120px);
 }
 
 .control-panel {
     width: 50%;
     background: white;
     border-left: 1px solid #ddd;
-    height: calc(100vh - 180px);
+    height: calc(100vh - 120px);
     display: flex;
     flex-direction: column;
 }
@@ -194,10 +196,12 @@ body {
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    background-color: #f8f9fa;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    margin-bottom: 8px;
+    background: white;
+}
+
+.species-item:last-child {
+    margin-bottom: 0;
 }
 
 .species-name {
