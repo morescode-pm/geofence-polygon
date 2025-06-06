@@ -392,9 +392,41 @@
             // Position the toast relative to the button that was clicked
             const rect = event ? event.target.getBoundingClientRect() : null;
             if (rect) {
-                toast.style.position = 'absolute';
-                toast.style.left = `${rect.right + 10}px`;
-                toast.style.top = `${rect.top}px`;
+                toast.style.position = 'fixed';
+                
+                // Calculate available space to the right and left of the click
+                const spaceToRight = window.innerWidth - rect.right;
+                const spaceToLeft = rect.left;
+                
+                // Toast width estimate (adjust if needed)
+                const estimatedToastWidth = 300;
+                
+                // Check if there's enough space to the right
+                if (spaceToRight >= estimatedToastWidth + 10) {
+                    // Position to the right of the button
+                    toast.style.left = `${rect.right + 10}px`;
+                    toast.style.top = `${rect.top}px`;
+                } else if (spaceToLeft >= estimatedToastWidth + 10) {
+                    // Position to the left of the button
+                    toast.style.left = `${rect.left - estimatedToastWidth - 10}px`;
+                    toast.style.top = `${rect.top}px`;
+                } else {
+                    // Position below the button if no horizontal space
+                    toast.style.left = `${Math.max(10, rect.left)}px`;
+                    toast.style.top = `${rect.bottom + 10}px`;
+                }
+                
+                // Ensure toast doesn't go below viewport
+                const estimatedToastHeight = 60;
+                if (parseFloat(toast.style.top) + estimatedToastHeight > window.innerHeight) {
+                    toast.style.top = `${window.innerHeight - estimatedToastHeight - 10}px`;
+                }
+            } else {
+                // Default position if no click event (center of screen)
+                toast.style.position = 'fixed';
+                toast.style.left = '50%';
+                toast.style.top = '20px';
+                toast.style.transform = 'translateX(-50%)';
             }
 
             toastContainer.appendChild(toast);
@@ -542,6 +574,40 @@
                 reader.readAsText(file);
             }
         }
+
+        // Update toast styles to ensure they're always visible
+        function addToastStyles() {
+            const style = document.createElement('style');
+            style.textContent = `
+                .toast-container {
+                    position: fixed;
+                    z-index: 1100;
+                    pointer-events: none;
+                }
+                .custom-toast {
+                    padding: 8px 15px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    max-width: 300px;
+                    background: white;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    display: none;
+                    animation: fadeInOut 3s ease-in-out;
+                    pointer-events: none;
+                    word-wrap: break-word;
+                }
+                @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translateY(-10px); }
+                    10% { opacity: 1; transform: translateY(0); }
+                    90% { opacity: 1; transform: translateY(0); }
+                    100% { opacity: 0; transform: translateY(-10px); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Call this when the page loads
+        document.addEventListener('DOMContentLoaded', addToastStyles);
     </script>
 </body>
 </html> 

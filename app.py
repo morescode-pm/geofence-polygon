@@ -123,6 +123,16 @@ def get_species_in_polygon(polygon_coords):
 
     return species_data
 
+def sort_species_data(species_data):
+    """Sort species data by taxonomic hierarchy."""
+    return sorted(species_data, key=lambda x: (
+        x.get('kingdom', ''),
+        x.get('phylum', ''),
+        x.get('class', ''),
+        x.get('order', ''),
+        x.get('species', '')
+    ))
+
 @app.route('/')
 def index():
     # Instead of using folium, we'll use the map.html template directly
@@ -170,14 +180,16 @@ def save_polygon():
         global last_species_data
         last_species_data = get_species_in_polygon(polygon_coords)
         
+        # Sort the species data
+        sorted_species = sort_species_data(last_species_data)
+        
         # Save species list to CSV
-        if last_species_data:
+        if sorted_species:
             species_dir = ensure_species_lists_directory()
             csv_path = os.path.join(species_dir, f"{safe_name}_species_list.csv")
             
-            # Create DataFrame and sort by species name
-            df = pd.DataFrame(last_species_data)
-            df = df.sort_values('species', na_position='last')
+            # Create DataFrame from sorted data
+            df = pd.DataFrame(sorted_species)
             df.to_csv(csv_path, index=False, encoding='utf-8')
         
         return jsonify({
@@ -187,7 +199,7 @@ def save_polygon():
                 'geojson': os.path.basename(save_result['geojson_path']),
                 'image': os.path.basename(save_result['png_path'])
             },
-            'species': sorted(last_species_data, key=lambda x: x['species'] or '')
+            'species': sorted_species
         })
     except Exception as e:
         return jsonify({
@@ -201,9 +213,11 @@ def download_species_csv():
     if not last_species_data:
         return jsonify({'error': 'No species data available'}), 404
     
-    # Create DataFrame from species data and sort by species name
-    df = pd.DataFrame(last_species_data)
-    df = df.sort_values('species', na_position='last')
+    # Sort the species data
+    sorted_species = sort_species_data(last_species_data)
+    
+    # Create DataFrame from sorted data
+    df = pd.DataFrame(sorted_species)
     
     # Create CSV in memory
     output = io.BytesIO()
