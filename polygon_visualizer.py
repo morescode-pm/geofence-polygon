@@ -2,7 +2,9 @@ import geopandas as gpd
 from shapely import wkt
 import matplotlib.pyplot as plt
 import os
-import numpy as np
+import matplotlib
+# Use Agg backend to prevent thread issues
+matplotlib.use('Agg')
 
 def ensure_save_directory():
     """Create the save directory if it doesn't exist."""
@@ -48,10 +50,10 @@ def visualize_and_save_polygon(gdf, output_name):
     ax.clear()
     gdf_web.plot(ax=ax, alpha=0.5, edgecolor='black')
     
-    # Add the basemap
+    # Add the basemap with minimal style
     ctx.add_basemap(
         ax,
-        source=ctx.providers.OpenStreetMap.Mapnik,
+        source=ctx.providers.CartoDB.Positron,  # Using CartoDB Positron for minimal style
         attribution=False  # Remove attribution text for a cleaner look
     )
     
@@ -61,7 +63,7 @@ def visualize_and_save_polygon(gdf, output_name):
     ax.set_ylabel('Latitude')
     
     plt.savefig(png_path, bbox_inches='tight', dpi=300)
-    plt.close()
+    plt.close('all')  # Close all figures to prevent memory leaks
     
     return {
         'geojson_path': geojson_path,

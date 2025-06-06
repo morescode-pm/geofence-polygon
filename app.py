@@ -5,12 +5,16 @@ import json
 from polygon_visualizer import create_polygon_from_wkt_coords, visualize_and_save_polygon
 import os
 import re
+from werkzeug.serving import is_running_from_reloader
+import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 
+# Create a single geolocator instance
+geolocator = Nominatim(user_agent="my_polygon_app")
+
 def get_location_coords(location_name):
     try:
-        geolocator = Nominatim(user_agent="my_polygon_app")
         location = geolocator.geocode(location_name)
         if location:
             return [location.latitude, location.longitude]
@@ -48,22 +52,22 @@ def search_location():
 
 @app.route('/save_polygon', methods=['POST'])
 def save_polygon():
-    data = request.get_json()
-    polygon_coords = data.get('coordinates')
-    polygon_name = data.get('name', 'unnamed_polygon')
-    
-    # Sanitize the filename
-    safe_name = sanitize_filename(polygon_name)
-    
-    # Ensure the polygon is closed by adding the first point at the end if needed
-    if polygon_coords[0] != polygon_coords[-1]:
-        polygon_coords.append(polygon_coords[0])
-    
-    # Convert coordinates to WKT format
-    coords_str = ','.join([f'{coord[1]} {coord[0]}' for coord in polygon_coords])
-    wkt_polygon = f'POLYGON(({coords_str}))'
-    
     try:
+        data = request.get_json()
+        polygon_coords = data.get('coordinates')
+        polygon_name = data.get('name', 'unnamed_polygon')
+        
+        # Sanitize the filename
+        safe_name = sanitize_filename(polygon_name)
+        
+        # Ensure the polygon is closed
+        if polygon_coords[0] != polygon_coords[-1]:
+            polygon_coords.append(polygon_coords[0])
+        
+        # Convert coordinates to WKT format
+        coords_str = ','.join([f'{coord[1]} {coord[0]}' for coord in polygon_coords])
+        wkt_polygon = f'POLYGON(({coords_str}))'
+        
         # Create and save the polygon visualization
         polygon_gdf = create_polygon_from_wkt_coords(wkt_polygon)
         save_result = visualize_and_save_polygon(polygon_gdf, safe_name)
@@ -82,5 +86,17 @@ def save_polygon():
             'message': str(e)
         })
 
+def cleanup():
+    """Clean up resources when the server shuts down."""
+    plt.close('all')
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    # Register cleanup function
+    import atexit
+    atexit.register(cleanup)
+    
+    # Only run in non-debug mode or if we're the main process
+    if not is_running_from_reloader() or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        app.run(debug=True, threaded=True)
+    else:
+        app.run(debug=True) 
