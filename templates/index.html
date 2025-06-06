@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Polygon Drawing Tool</title>
+    <title>Species Geofencing Tool</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
@@ -9,22 +9,80 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .container-fluid {
+            padding: 15px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1.mt-4 {
+            margin-top: 0 !important;
+            margin-bottom: 15px;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            margin: 0;
+            min-height: 0; /* This is important for Firefox */
+        }
+        .left-panel {
+            flex: 1;
+            padding-right: 20px;
+            max-width: 50%;
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* This is important for Firefox */
+        }
+        .right-panel {
+            flex: 1;
+            padding-left: 20px;
+            border-left: 1px solid #dee2e6;
+            max-width: 50%;
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* This is important for Firefox */
+        }
+        .right-panel-header {
+            position: sticky;
+            top: 0;
+            background-color: white;
+            padding: 0 0 15px 0;
+            border-bottom: 1px solid #dee2e6;
+            z-index: 1000;
+        }
+        .right-panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-top: 15px;
+        }
         #map {
-            height: 500px;
+            height: 600px;
             width: 100%;
-            margin-top: 20px;
             border: 1px solid #ccc;
             border-radius: 4px;
+            margin-bottom: 15px;
         }
         .controls {
-            margin: 20px 0;
-            padding: 20px;
+            margin: 0 0 15px 0;
+            padding: 15px;
             background-color: #f8f9fa;
             border-radius: 5px;
         }
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
         #message {
-            margin-top: 10px;
-            min-height: 60px;
+            display: none;
         }
         .alert {
             padding: 15px;
@@ -35,28 +93,156 @@
             border-color: #2196F3;
             color: #0d47a1;
         }
+        .species-list {
+            margin-top: 20px;
+        }
+        .species-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 14px;
+            line-height: 1.4;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        .species-item:last-child {
+            border-bottom: none;
+        }
+        .species-item:hover {
+            background-color: #f8f9fa;
+        }
+        .species-arrow {
+            color: #6c757d;
+            margin: 0 4px;
+            user-select: none;
+        }
+        .taxon-id {
+            color: #6c757d;
+            margin-left: 8px;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+        .geofence-file-name {
+            display: none;
+        }
+        /* Toast styling */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+        }
+
+        .custom-toast {
+            position: absolute;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            max-width: 300px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+            animation: fadeInOut 3s ease-in-out;
+        }
+
+        .toast-success {
+            border-left: 4px solid #28a745;
+            color: #155724;
+            background-color: #d4edda;
+        }
+
+        .toast-error {
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+            background-color: #f8d7da;
+        }
+
+        .toast-info {
+            border-left: 4px solid #17a2b8;
+            color: #0c5460;
+            background-color: #d1ecf1;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="mt-4">Polygon Drawing Tool</h1>
+    <div class="container-fluid">
+        <h1 class="mt-4">Species Geofencing Tool</h1>
         
-        <div class="controls">
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="input-group">
-                        <input type="text" id="location-input" class="form-control" placeholder="Enter location (e.g., Chicago River, Chicago, IL)">
-                        <div class="input-group-append">
-                            <button class="btn btn-primary" onclick="searchLocation()">Search</button>
+        <!-- Toast Container -->
+        <div class="toast-container"></div>
+
+        <div class="main-container">
+            <!-- Left Panel -->
+            <div class="left-panel">
+                <h2 class="panel-title">Draw Geofence</h2>
+                <div class="controls">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="input-group">
+                                <input type="text" id="location-input" class="form-control" placeholder="Enter location (e.g., Chicago River, Chicago, IL)">
+                                <div class="input-group-append">
+                                    <button class="btn btn-primary" onclick="searchLocation()">Search</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="button-group">
+                                <div class="input-group">
+                                    <input type="text" id="polygon-name" class="form-control" placeholder="Enter geofence name">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-success" onclick="savePolygon()">Save Geofence and Search</button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline-primary" onclick="loadGeofence()">Load Geofence</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <button class="btn btn-success mt-3" onclick="savePolygon()">Save Polygon</button>
-            <div id="message"></div>
-        </div>
 
-        <div id="map"></div>
+                <!-- Hidden file input for loading geofence -->
+                <input type="file" id="geofence-input" accept=".geojson" style="display: none;" onChange="handleGeofenceFile(this)">
+
+                <div id="map"></div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="right-panel">
+                <div class="right-panel-header">
+                    <h2 class="panel-title">List of Species in Geofence</h2>
+                    <div class="species-controls mb-3">
+                        <button id="download-csv" class="btn btn-primary" disabled>Download Species List as CSV</button>
+                    </div>
+                </div>
+                <div class="right-panel-content">
+                    <div id="species-list" class="species-list">
+                        <p class="text-muted initial-message">Draw and save a geofence to see species in the area.</p>
+                    </div>
+                    <div class="loading-spinner">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2">Fetching species data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Make sure Leaflet JS is loaded before Leaflet.draw JS -->
@@ -107,18 +293,19 @@
             }
             currentPolygon = e.layer;
             drawnItems.addLayer(currentPolygon);
-            showMessage('Polygon created! Use the edit tools to modify or delete it, or click "Save Polygon" to save.', 'success');
+            showSuccessMessage('Polygon created! Use the edit tools to modify or delete it, or click "Save Geofence" to save.');
         });
 
         // Handle edited shapes
         map.on('draw:edited', function(e) {
-            showMessage('Polygon edited! Click "Save Polygon" to save changes.', 'success');
+            showSuccessMessage('Polygon edited! Click "Save Geofence" to save changes.');
         });
 
         // Handle deleted shapes
         map.on('draw:deleted', function(e) {
             currentPolygon = null;
-            showMessage('Polygon deleted', 'info');
+            showInfoMessage('Polygon deleted');
+            clearSpeciesList();
         });
 
         function searchLocation() {
@@ -136,11 +323,11 @@
                 if (data.success) {
                     map.setView(data.coords, 13);
                 } else {
-                    showMessage('Location not found', 'danger');
+                    showErrorMessage('Location not found');
                 }
             })
             .catch(error => {
-                showMessage('Error searching location', 'danger');
+                showErrorMessage('Error searching location');
             });
         }
 
@@ -153,39 +340,183 @@
             });
 
             if (polygonToSave) {
+                const polygonName = document.getElementById('polygon-name').value.trim() || 'unnamed_polygon';
                 const coordinates = polygonToSave.getLatLngs()[0].map(coord => [coord.lat, coord.lng]);
                 
+                // Clear existing results and show loading state
+                const speciesList = document.getElementById('species-list');
+                speciesList.innerHTML = '<p class="text-muted">Loading new species data...</p>';
+                document.getElementById('download-csv').disabled = true;
+                showLoadingSpinner();
+
                 fetch('/save_polygon', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ coordinates: coordinates })
+                    body: JSON.stringify({
+                        coordinates: coordinates,
+                        name: polygonName
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showMessage('Polygon saved successfully!', 'success');
+                        showSuccessMessage('Polygon saved successfully! Check the generated files.');
+                        updateSpeciesList(data.species);
                     } else {
-                        showMessage('Error saving polygon: ' + data.message, 'danger');
+                        showErrorMessage('Error saving polygon: ' + data.message);
+                        // Reset species list to empty state on error
+                        speciesList.innerHTML = '<p class="text-muted">Draw and save a geofence to see species in the area.</p>';
                     }
                 })
                 .catch(error => {
-                    showMessage('Error saving polygon', 'danger');
+                    showErrorMessage('Error saving polygon');
+                    // Reset species list to empty state on error
+                    speciesList.innerHTML = '<p class="text-muted">Draw and save a geofence to see species in the area.</p>';
+                })
+                .finally(() => {
+                    hideLoadingSpinner();
                 });
             } else {
-                showMessage('Please draw a polygon first', 'warning');
+                showErrorMessage('Please draw a polygon first');
             }
         }
 
-        function showMessage(text, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
-            if (type !== 'danger') {
-                setTimeout(() => {
-                    messageDiv.innerHTML = '';
-                }, 5000);
+        function showToast(message, type = 'info') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toast = document.createElement('div');
+            toast.className = `custom-toast toast-${type}`;
+            toast.textContent = message;
+            
+            // Position the toast relative to the button that was clicked
+            const rect = event ? event.target.getBoundingClientRect() : null;
+            if (rect) {
+                toast.style.position = 'fixed';
+                
+                // Calculate available space to the right and left of the click
+                const spaceToRight = window.innerWidth - rect.right;
+                const spaceToLeft = rect.left;
+                
+                // Toast width estimate (adjust if needed)
+                const estimatedToastWidth = 300;
+                
+                // Check if there's enough space to the right
+                if (spaceToRight >= estimatedToastWidth + 10) {
+                    // Position to the right of the button
+                    toast.style.left = `${rect.right + 10}px`;
+                    toast.style.top = `${rect.top}px`;
+                } else if (spaceToLeft >= estimatedToastWidth + 10) {
+                    // Position to the left of the button
+                    toast.style.left = `${rect.left - estimatedToastWidth - 10}px`;
+                    toast.style.top = `${rect.top}px`;
+                } else {
+                    // Position below the button if no horizontal space
+                    toast.style.left = `${Math.max(10, rect.left)}px`;
+                    toast.style.top = `${rect.bottom + 10}px`;
+                }
+                
+                // Ensure toast doesn't go below viewport
+                const estimatedToastHeight = 60;
+                if (parseFloat(toast.style.top) + estimatedToastHeight > window.innerHeight) {
+                    toast.style.top = `${window.innerHeight - estimatedToastHeight - 10}px`;
+                }
+            } else {
+                // Default position if no click event (center of screen)
+                toast.style.position = 'fixed';
+                toast.style.left = '50%';
+                toast.style.top = '20px';
+                toast.style.transform = 'translateX(-50%)';
             }
+
+            toastContainer.appendChild(toast);
+            toast.style.display = 'block';
+
+            // Remove the toast after animation
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        function showSuccessMessage(message) {
+            showToast(message, 'success');
+        }
+
+        function showErrorMessage(message) {
+            showToast(message, 'error');
+        }
+
+        function showInfoMessage(message) {
+            showToast(message, 'info');
+        }
+
+        function showLoadingSpinner() {
+            document.querySelector('.loading-spinner').style.display = 'block';
+            document.querySelector('.initial-message')?.remove();
+            document.getElementById('download-csv').disabled = true;
+        }
+
+        function hideLoadingSpinner() {
+            document.querySelector('.loading-spinner').style.display = 'none';
+        }
+
+        function updateSpeciesList(species) {
+            const speciesList = document.getElementById('species-list');
+            if (!species || species.length === 0) {
+                speciesList.innerHTML = '<p class="text-muted">No species found in this area.</p>';
+                document.getElementById('download-csv').disabled = true;
+                return;
+            }
+
+            // Sort species by each taxonomic level in order
+            const sortedSpecies = [...species].sort((a, b) => {
+                // Compare kingdom first
+                const kingdomCompare = (a.kingdom || '').localeCompare(b.kingdom || '');
+                if (kingdomCompare !== 0) return kingdomCompare;
+
+                // Then compare phylum
+                const phylumCompare = (a.phylum || '').localeCompare(b.phylum || '');
+                if (phylumCompare !== 0) return phylumCompare;
+
+                // Then compare class
+                const classCompare = (a.class || '').localeCompare(b.class || '');
+                if (classCompare !== 0) return classCompare;
+
+                // Then compare order
+                const orderCompare = (a.order || '').localeCompare(b.order || '');
+                if (orderCompare !== 0) return orderCompare;
+
+                // Finally compare species name
+                return (a.species || '').localeCompare(b.species || '');
+            });
+
+            let html = '<div class="list-group">';
+            sortedSpecies.forEach(s => {
+                html += `
+                    <div class="species-item">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span>
+                                ${s.kingdom} <span class="species-arrow">→</span> 
+                                ${s.phylum} <span class="species-arrow">→</span> 
+                                ${s.class} <span class="species-arrow">→</span> 
+                                ${s.order} <span class="species-arrow">→</span> 
+                                <strong>${s.species}</strong>
+                                <span class="taxon-id">(ID: ${s.taxonId})</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            speciesList.innerHTML = html;
+            document.getElementById('download-csv').disabled = false;
+        }
+
+        function clearSpeciesList() {
+            const speciesList = document.getElementById('species-list');
+            speciesList.innerHTML = '<p class="text-muted">Draw and save a polygon to see species in the area.</p>';
+            document.getElementById('download-csv').disabled = true;
         }
 
         // Handle enter key in search box
@@ -194,6 +525,89 @@
                 searchLocation();
             }
         });
+
+        // Handle CSV download
+        document.getElementById('download-csv').addEventListener('click', function() {
+            fetch('/download_species_csv')
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'species_list.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                })
+                .catch(error => {
+                    showErrorMessage('Error downloading CSV file');
+                });
+        });
+
+        function loadGeofence() {
+            document.getElementById('geofence-input').click();
+        }
+
+        function handleGeofenceFile(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const geojson = JSON.parse(e.target.result);
+                        currentPolygon = L.geoJSON(geojson).getLayers()[0];
+                        drawnItems.clearLayers();
+                        drawnItems.addLayer(currentPolygon);
+                        map.fitBounds(currentPolygon.getBounds());
+                        
+                        showSuccessMessage('Geofence loaded successfully!');
+                        
+                        // Set the name input to the filename without extension
+                        const filename = file.name.replace('.geojson', '');
+                        document.getElementById('polygon-name').value = filename;
+                        
+                    } catch (error) {
+                        showErrorMessage('Error loading geofence file. Please ensure it is a valid GeoJSON file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // Update toast styles to ensure they're always visible
+        function addToastStyles() {
+            const style = document.createElement('style');
+            style.textContent = `
+                .toast-container {
+                    position: fixed;
+                    z-index: 1100;
+                    pointer-events: none;
+                }
+                .custom-toast {
+                    padding: 8px 15px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    max-width: 300px;
+                    background: white;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    display: none;
+                    animation: fadeInOut 3s ease-in-out;
+                    pointer-events: none;
+                    word-wrap: break-word;
+                }
+                @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translateY(-10px); }
+                    10% { opacity: 1; transform: translateY(0); }
+                    90% { opacity: 1; transform: translateY(0); }
+                    100% { opacity: 0; transform: translateY(-10px); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Call this when the page loads
+        document.addEventListener('DOMContentLoaded', addToastStyles);
     </script>
 </body>
 </html> 
