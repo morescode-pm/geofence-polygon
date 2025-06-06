@@ -343,13 +343,18 @@
                 const polygonName = document.getElementById('polygon-name').value.trim() || 'unnamed_polygon';
                 const coordinates = polygonToSave.getLatLngs()[0].map(coord => [coord.lat, coord.lng]);
                 
+                // Clear existing results and show loading state
+                const speciesList = document.getElementById('species-list');
+                speciesList.innerHTML = '<p class="text-muted">Loading new species data...</p>';
+                document.getElementById('download-csv').disabled = true;
                 showLoadingSpinner();
+
                 fetch('/save_polygon', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         coordinates: coordinates,
                         name: polygonName
                     })
@@ -358,14 +363,17 @@
                 .then(data => {
                     if (data.success) {
                         showSuccessMessage('Polygon saved successfully! Check the generated files.');
-                        document.getElementById('polygon-name').value = '';
                         updateSpeciesList(data.species);
                     } else {
                         showErrorMessage('Error saving polygon: ' + data.message);
+                        // Reset species list to empty state on error
+                        speciesList.innerHTML = '<p class="text-muted">Draw and save a geofence to see species in the area.</p>';
                     }
                 })
                 .catch(error => {
                     showErrorMessage('Error saving polygon');
+                    // Reset species list to empty state on error
+                    speciesList.innerHTML = '<p class="text-muted">Draw and save a geofence to see species in the area.</p>';
                 })
                 .finally(() => {
                     hideLoadingSpinner();
@@ -428,8 +436,25 @@
                 return;
             }
 
-            // Sort species alphabetically by species name
+            // Sort species by each taxonomic level in order
             const sortedSpecies = [...species].sort((a, b) => {
+                // Compare kingdom first
+                const kingdomCompare = (a.kingdom || '').localeCompare(b.kingdom || '');
+                if (kingdomCompare !== 0) return kingdomCompare;
+
+                // Then compare phylum
+                const phylumCompare = (a.phylum || '').localeCompare(b.phylum || '');
+                if (phylumCompare !== 0) return phylumCompare;
+
+                // Then compare class
+                const classCompare = (a.class || '').localeCompare(b.class || '');
+                if (classCompare !== 0) return classCompare;
+
+                // Then compare order
+                const orderCompare = (a.order || '').localeCompare(b.order || '');
+                if (orderCompare !== 0) return orderCompare;
+
+                // Finally compare species name
                 return (a.species || '').localeCompare(b.species || '');
             });
 

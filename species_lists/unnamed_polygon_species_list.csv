@@ -1,7 +1,7 @@
 kingdom,phylum,class,order,species,taxonId
+Animalia,Chordata,-,Perciformes,-,2391100
 Animalia,Chordata,Aves,Accipitriformes,-,3242735
 Animalia,Arthropoda,Insecta,Hymenoptera,-,1309643
-Animalia,Chordata,-,Perciformes,-,2391100
 Animalia,Chordata,Aves,Pelecaniformes,-,2480909
 Animalia,Chordata,Aves,Passeriformes,Agelaius phoeniceus,9409198
 Animalia,Chordata,Aves,Anseriformes,Aix sponsa,2498387
@@ -35,14 +35,14 @@ Animalia,Chordata,Aves,Charadriiformes,Charadrius melodus,2480283
 Animalia,Chordata,Aves,Charadriiformes,Charadrius vociferus,2480320
 Animalia,Chordata,Testudines,-,Chelydra serpentina,2441905
 Animalia,Chordata,Testudines,-,Chrysemys picta,2443133
-Animalia,Chordata,Aves,Anseriformes,Clangula hyemalis,2498273
 Animalia,Arthropoda,Insecta,Diptera,Clogmia albipunctatus,4522049
 Animalia,Arthropoda,Insecta,Coleoptera,Coccinella septempunctata,4990191
+Animalia,Chordata,Aves,Cuculiformes,Coccyzus americanus,2496287
 Animalia,Chordata,Aves,Piciformes,Colaptes auratus,2478259
 Animalia,Chordata,Aves,Piciformes,Colaptes auratus,6177448
 Animalia,Arthropoda,Insecta,Coleoptera,Coleomegilla maculata,1043637
-Animalia,Chordata,Aves,Columbiformes,Columba livia,2495414
 Animalia,Chordata,Aves,Columbiformes,Columba livia,10729360
+Animalia,Chordata,Aves,Columbiformes,Columba livia,2495414
 Animalia,Chordata,Aves,Passeriformes,Corvus brachyrhynchos,2482507
 Animalia,Chordata,Aves,Anseriformes,Cygnus buccinator,2498345
 Animalia,Chordata,Mammalia,Didelphimorphia,Didelphis virginiana,2439923
@@ -87,6 +87,7 @@ Animalia,Chordata,Aves,Anseriformes,Mergus merganser,9537647
 Animalia,Chordata,Aves,Anseriformes,Mergus serrator,2498375
 Animalia,Chordata,Aves,Passeriformes,Mniotilta varia,2489613
 Animalia,Chordata,Aves,Passeriformes,Molothrus ater,2484391
+Animalia,Chordata,Squamata,-,Nerodia sipedon,7190699
 Animalia,Chordata,Aves,Pelecaniformes,Nyctanassa violacea,2480953
 Animalia,Chordata,Aves,Pelecaniformes,Nycticorax nycticorax,2480863
 Animalia,Chordata,Mammalia,Rodentia,Ondatra zibethicus,5219858
@@ -94,6 +95,7 @@ Animalia,Chordata,Aves,Anseriformes,Oxyura jamaicensis,2498305
 Animalia,Chordata,Aves,Passeriformes,Parkesia noveboracensis,6093856
 Animalia,Chordata,Aves,Passeriformes,Passer domesticus,5231190
 Animalia,Chordata,Aves,Passeriformes,Passerella iliaca,2491872
+Animalia,Chordata,Aves,Passeriformes,Passerina cyanea,2490327
 Animalia,Arthropoda,Insecta,Blattodea,Periplaneta americana,2000152
 Animalia,Chordata,Aves,Passeriformes,Petrochelidon pyrrhonota,2489169
 Animalia,Chordata,Aves,Suliformes,Phalacrocorax auritus,9275717
@@ -123,6 +125,7 @@ Animalia,Arthropoda,Insecta,Hemiptera,Sehirus cinctus,2078783
 Animalia,Chordata,Aves,Passeriformes,Seiurus aurocapilla,2489590
 Animalia,Chordata,Aves,Passeriformes,Setophaga americana,6093345
 Animalia,Chordata,Aves,Passeriformes,Setophaga caerulescens,7341828
+Animalia,Chordata,Aves,Passeriformes,Setophaga magnolia,6093209
 Animalia,Chordata,Aves,Passeriformes,Setophaga pensylvanica,6092942
 Animalia,Chordata,Aves,Passeriformes,Setophaga petechia,7341834
 Animalia,Chordata,Aves,Passeriformes,Setophaga virens,6092631
@@ -137,8 +140,8 @@ Animalia,Chordata,Mammalia,Rodentia,Tamias striatus,2437438
 Animalia,Arthropoda,Insecta,Mantodea,Tenodera sinensis,5887934
 Animalia,Arthropoda,Insecta,Hymenoptera,Tetramorium immigrans,10114596
 Animalia,Chordata,Aves,Passeriformes,Toxostoma rufum,9479809
-Animalia,Chordata,Testudines,-,Trachemys scripta,6157026
 Animalia,Chordata,Testudines,-,Trachemys scripta,2443002
+Animalia,Chordata,Testudines,-,Trachemys scripta,6157026
 Animalia,Chordata,Aves,Passeriformes,Troglodytes aedon,5231459
 Animalia,Chordata,Aves,Passeriformes,Turdus migratorius,9510564
 Animalia,Arthropoda,Insecta,Lepidoptera,Vanessa cardui,4299368
