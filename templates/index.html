@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Polygon Drawing Tool</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Make sure Leaflet CSS is loaded before Leaflet.draw CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        #message {
+            margin-top: 10px;
+            min-height: 60px;
+        }
+        .alert {
+            padding: 15px;
+            border-width: 2px;
+        }
+        .alert-info {
+            background-color: #e3f2fd;
+            border-color: #2196F3;
+            color: #0d47a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-4">Polygon Drawing Tool</h1>
+        
+        <div class="controls">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" id="location-input" class="form-control" placeholder="Enter location (e.g., Chicago River, Chicago, IL)">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" onclick="searchLocation()">Search</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success mt-3" onclick="savePolygon()">Save Polygon</button>
+            <div id="message"></div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+    <!-- Make sure Leaflet JS is loaded before Leaflet.draw JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script>
+        // Initialize the map with minimal style
+        var map = L.map('map').setView([41.8781, -87.6298], 12);
+        
+        // Add minimal map style
+        L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Initialize the FeatureGroup to store editable layers
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        // Initialize draw control and add it to the map
+        var drawControl = new L.Control.Draw({
+            position: 'topleft',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true
+                },
+                // Disable all other drawing tools
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                circlemarker: false,
+                marker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+
+        // Store the current polygon
+        var currentPolygon = null;
+
+        // Handle created shapes
+        map.on('draw:created', function(e) {
+            if (currentPolygon) {
+                drawnItems.removeLayer(currentPolygon);
+            }
+            currentPolygon = e.layer;
+            drawnItems.addLayer(currentPolygon);
+            showMessage('Polygon created! Use the edit tools to modify or delete it, or click "Save Polygon" to save.', 'success');
+        });
+
+        // Handle edited shapes
+        map.on('draw:edited', function(e) {
+            showMessage('Polygon edited! Click "Save Polygon" to save changes.', 'success');
+        });
+
+        // Handle deleted shapes
+        map.on('draw:deleted', function(e) {
+            currentPolygon = null;
+            showMessage('Polygon deleted', 'info');
+        });
+
+        function searchLocation() {
+            const location = document.getElementById('location-input').value;
+            
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ location: location })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    map.setView(data.coords, 13);
+                } else {
+                    showMessage('Location not found', 'danger');
+                }
+            })
+            .catch(error => {
+                showMessage('Error searching location', 'danger');
+            });
+        }
+
+        function savePolygon() {
+            var polygonToSave = null;
+            drawnItems.eachLayer(function(layer) {
+                if (layer instanceof L.Polygon) {
+                    polygonToSave = layer;
+                }
+            });
+
+            if (polygonToSave) {
+                const coordinates = polygonToSave.getLatLngs()[0].map(coord => [coord.lat, coord.lng]);
+                
+                fetch('/save_polygon', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ coordinates: coordinates })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage('Polygon saved successfully!', 'success');
+                    } else {
+                        showMessage('Error saving polygon: ' + data.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showMessage('Error saving polygon', 'danger');
+                });
+            } else {
+                showMessage('Please draw a polygon first', 'warning');
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
+            if (type !== 'danger') {
+                setTimeout(() => {
+                    messageDiv.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        // Handle enter key in search box
+        document.getElementById('location-input').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                searchLocation();
+            }
+        });
+    </script>
+</body>
+</html> 
