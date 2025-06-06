@@ -1,56 +1,72 @@
 import geopandas as gpd
-from shapely.geometry import Polygon
+from shapely import wkt
 import matplotlib.pyplot as plt
-from urllib.parse import unquote
+import os
+import numpy as np
 
-def create_polygon_from_wkt_coords(wkt_string):
-    # Clean up the WKT string and extract coordinates
-    coords_str = wkt_string.replace('POLYGON((', '').replace('))', '')
+def ensure_save_directory():
+    """Create the save directory if it doesn't exist."""
+    save_dir = os.path.join(os.getcwd(), 'saved_polygons')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    return save_dir
+
+def create_polygon_from_wkt_coords(wkt_polygon):
+    """Create a GeoDataFrame from WKT polygon coordinates."""
+    # Create polygon from WKT string
+    polygon = wkt.loads(wkt_polygon)
     
-    # Split the coordinates and convert them to float pairs
-    coord_pairs = []
-    for pair in coords_str.split(','):
-        # Convert URL-encoded values and split into x,y
-        x, y = map(float, unquote(pair).split())
-        coord_pairs.append((x, y))
-    
-    # Create a Shapely polygon
-    polygon = Polygon(coord_pairs)
-    
-    # Create a GeoDataFrame
+    # Create GeoDataFrame
     gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
-    
     return gdf
 
-def visualize_and_save_polygon(polygon_gdf, output_prefix="custom_polygon"):
+def visualize_and_save_polygon(gdf, output_name):
+    """Visualize and save the polygon as both GeoJSON and PNG map."""
+    # Ensure save directory exists
+    save_dir = ensure_save_directory()
+    
+    # Create full file paths
+    geojson_path = os.path.join(save_dir, f"{output_name}.geojson")
+    png_path = os.path.join(save_dir, f"{output_name}_map.png")
+    
+    # Save as GeoJSON
+    gdf.to_file(geojson_path, driver='GeoJSON')
+    
     # Create visualization
-    fig, ax = plt.subplots(figsize=(15, 15))
+    fig, ax = plt.subplots(figsize=(10, 10))
     
     # Plot the polygon
-    polygon_gdf.plot(ax=ax, alpha=0.5, color='red', edgecolor='black')
+    gdf.plot(ax=ax, alpha=0.5, edgecolor='black')
     
-    # Customize the plot
-    plt.title('Custom Polygon Visualization')
+    # Add basemap
+    import contextily as ctx
     
-    # Add gridlines
-    ax.grid(True)
+    # Convert to Web Mercator
+    gdf_web = gdf.to_crs(epsg=3857)
     
-    # Set axis labels
+    # Clear the current plot and create a new one with the reprojected data
+    ax.clear()
+    gdf_web.plot(ax=ax, alpha=0.5, edgecolor='black')
+    
+    # Add the basemap
+    ctx.add_basemap(
+        ax,
+        source=ctx.providers.OpenStreetMap.Mapnik,
+        attribution=False  # Remove attribution text for a cleaner look
+    )
+    
+    # Add title and labels
+    plt.title('Polygon Visualization')
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Latitude')
     
-    # Adjust the plot bounds
-    bounds = polygon_gdf.geometry.total_bounds
-    ax.set_xlim([bounds[0] - 0.01, bounds[2] + 0.01])
-    ax.set_ylim([bounds[1] - 0.01, bounds[3] + 0.01])
+    plt.savefig(png_path, bbox_inches='tight', dpi=300)
+    plt.close()
     
-    # Save the visualization
-    plt.savefig(f'{output_prefix}_map.png')
-    print(f"Map visualization saved as {output_prefix}_map.png")
-    
-    # Save as GeoJSON
-    polygon_gdf.to_file(f'{output_prefix}.geojson', driver='GeoJSON')
-    print(f"Polygon saved as {output_prefix}.geojson")
+    return {
+        'geojson_path': geojson_path,
+        'png_path': png_path
+    }
 
 if __name__ == "__main__":
     # Example WKT polygon string (you can replace this with any other polygon string)
@@ -58,4 +74,4 @@ if __name__ == "__main__":
     
     # Create and visualize the polygon
     polygon_gdf = create_polygon_from_wkt_coords(wkt_polygon)
-    visualize_and_save_polygon(polygon_gdf) 
+    visualize_and_save_polygon(polygon_gdf, "custom_polygon") 

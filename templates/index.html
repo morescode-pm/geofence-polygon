@@ -52,7 +52,16 @@
                     </div>
                 </div>
             </div>
-            <button class="btn btn-success mt-3" onclick="savePolygon()">Save Polygon</button>
+            <div class="row mt-3">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" id="polygon-name" class="form-control" placeholder="Enter polygon name">
+                        <div class="input-group-append">
+                            <button class="btn btn-success" onclick="savePolygon()">Save Polygon</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="message"></div>
         </div>
 
@@ -153,6 +162,7 @@
             });
 
             if (polygonToSave) {
+                const polygonName = document.getElementById('polygon-name').value.trim() || 'unnamed_polygon';
                 const coordinates = polygonToSave.getLatLngs()[0].map(coord => [coord.lat, coord.lng]);
                 
                 fetch('/save_polygon', {
@@ -160,12 +170,17 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ coordinates: coordinates })
+                    body: JSON.stringify({ 
+                        coordinates: coordinates,
+                        name: polygonName
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showMessage('Polygon saved successfully!', 'success');
+                        showMessage('Polygon saved successfully! Check the generated files.', 'success');
+                        // Clear the polygon name input after successful save
+                        document.getElementById('polygon-name').value = '';
                     } else {
                         showMessage('Error saving polygon: ' + data.message, 'danger');
                     }
