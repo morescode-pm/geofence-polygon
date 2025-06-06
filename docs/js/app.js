@@ -278,17 +278,11 @@ async function displaySpecies(species) {
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
         
-        const commonName = species.vernacularName || 'No common name available';
-        const scientificName = species.scientificName || 'Unknown species';
-        const mostCommonName = species.mostCommonName ? ` (commonly known as: ${species.mostCommonName})` : '';
-        const taxonId = species.taxonKey || 'N/A';
-        
         speciesItem.innerHTML = `
             <div class="species-item-content">
-                <span class="species-name">${commonName === scientificName ? `<em>${scientificName}</em>${mostCommonName}` : `${commonName} (<em>${scientificName}</em>)${mostCommonName}`}</span>
+                <span class="species-name">${species.mostCommonName || species.vernacularName || species.scientificName}</span>
                 <span class="species-taxonomy">
-                    ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}
-                    <small class="text-muted ms-2">ID: ${taxonId}</small>
+                    ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order} > ${species.species} > ${species.taxonKey}
                 </span>
             </div>
         `;

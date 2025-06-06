@@ -219,7 +219,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 15px;
+    gap: 20px;
 }
 
 .species-name {
@@ -227,7 +227,9 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 0 1 auto;
-    min-width: 200px;
+    min-width: 150px;
+    max-width: 250px;
+    font-weight: 500;
 }
 
 .species-taxonomy {
