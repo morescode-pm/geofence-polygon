@@ -188,7 +188,34 @@ function sortSpeciesData(speciesData) {
     });
 }
 
-function displaySpecies(species) {
+// Function to get the most common vernacular name for a species
+async function getMostCommonName(taxonKey) {
+    try {
+        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames`);
+        const data = await response.json();
+        
+        if (data && data.results && data.results.length > 0) {
+            // Sort by language (prioritize English) and preference count
+            const sortedNames = data.results.sort((a, b) => {
+                // Prioritize English names
+                if (a.language === 'eng' && b.language !== 'eng') return -1;
+                if (b.language === 'eng' && a.language !== 'eng') return 1;
+                
+                // Then sort by preference count if available
+                return (b.preferredCount || 0) - (a.preferredCount || 0);
+            });
+            
+            return sortedNames[0].vernacularName;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching vernacular name:', error);
+        return null;
+    }
+}
+
+// Function to display species
+async function displaySpecies(species) {
     console.log('Displaying species data:', species);
     const speciesList = document.getElementById('speciesList');
     const speciesHeader = document.querySelector('.species-list-header');
@@ -206,7 +233,7 @@ function displaySpecies(species) {
         return;
     }
 
-    // Create a Map to store unique species by taxonKey instead of scientific name
+    // Create a Map to store unique species by taxonKey
     const uniqueSpecies = new Map();
     
     species.forEach(s => {
@@ -230,20 +257,35 @@ function displaySpecies(species) {
     speciesHeader.classList.remove('d-none');
     
     // Clear existing list
+    speciesList.innerHTML = '<div class="species-item">Loading common names...</div>';
+    
+    // Fetch common names for all species
+    const speciesWithCommonNames = await Promise.all(
+        uniqueSpeciesArray.map(async (species) => {
+            const commonName = await getMostCommonName(species.taxonKey);
+            return {
+                ...species,
+                mostCommonName: commonName
+            };
+        })
+    );
+    
+    // Clear loading message
     speciesList.innerHTML = '';
     
-    // Display unique species
-    uniqueSpeciesArray.forEach(species => {
+    // Display unique species with common names
+    speciesWithCommonNames.forEach(species => {
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
         
         const commonName = species.vernacularName || 'No common name available';
         const scientificName = species.scientificName || 'Unknown species';
+        const mostCommonName = species.mostCommonName ? ` (commonly known as: ${species.mostCommonName})` : '';
         const taxonId = species.taxonKey || 'N/A';
         
         speciesItem.innerHTML = `
             <div class="species-item-content">
-                <span class="species-name">${commonName === scientificName ? `<em>${scientificName}</em>` : `${commonName} (<em>${scientificName}</em>)`}</span>
+                <span class="species-name">${commonName === scientificName ? `<em>${scientificName}</em>${mostCommonName}` : `${commonName} (<em>${scientificName}</em>)${mostCommonName}`}</span>
                 <span class="species-taxonomy">
                     ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}
                     <small class="text-muted ms-2">ID: ${taxonId}</small>
@@ -253,6 +295,9 @@ function displaySpecies(species) {
         
         speciesList.appendChild(speciesItem);
     });
+
+    // Store the species with common names for the download function
+    lastSpeciesData = speciesWithCommonNames;
 }
 
 // Initialize modal
@@ -381,7 +426,7 @@ async function searchSpecies() {
         const sortedSpecies = sortSpeciesData(lastSpeciesData);
         
         // Display species list
-        displaySpecies(sortedSpecies);
+        await displaySpecies(sortedSpecies);
         
         toastr.success('Species search completed');
     } catch (error) {
@@ -472,13 +517,14 @@ function downloadSpeciesList() {
     });
 
     const csvContent = [
-        ['Kingdom', 'Phylum', 'Class', 'Order', 'Species'],
+        ['Kingdom', 'Phylum', 'Class', 'Order', 'Species', 'Most Common Name'],
         ...sortedSpecies.map(species => [
             species.kingdom || 'Animalia',
             species.phylum || '-',
             species.class || '-',
             species.order || '-',
-            species.species || '-'
+            species.species || '-',
+            species.mostCommonName || '-'
         ])
     ].map(row => row.join(',')).join('\n');
 
