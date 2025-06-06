@@ -249,4 +249,34 @@ body {
 .btn-group-vertical .btn {
     margin-bottom: 5px;
     text-align: left;
+}
+
+.saved-geofences-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+.saved-geofence-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #dee2e6;
+    background: white;
+}
+
+.saved-geofence-item:last-child {
+    border-bottom: none;
+}
+
+.saved-geofence-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+    flex: 1;
+}
+
+.saved-geofence-item:hover {
+    background-color: #f8f9fa;
 } 

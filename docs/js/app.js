@@ -144,6 +144,8 @@ async function getSpeciesInPolygon(polygonCoords) {
 
             if (!data.results || data.results.length === 0) break;
 
+            console.log(`Fetched ${data.results.length} results from GBIF`);
+
             for (const result of data.results) {
                 const taxonId = result.taxonKey;
                 if (taxonId && 
@@ -151,12 +153,14 @@ async function getSpeciesInPolygon(polygonCoords) {
                     !processedTaxa.has(taxonId)) {
                     
                     speciesData.push({
-                        kingdom: result.kingdom || '-',
+                        scientificName: result.scientificName || 'Unknown species',
+                        vernacularName: result.vernacularName || result.scientificName || 'Unknown species',
+                        taxonKey: result.taxonKey,
+                        kingdom: result.kingdom || 'Animalia',
                         phylum: result.phylum || '-',
                         class: result.class || '-',
                         order: result.order || '-',
-                        species: result.species || '-',
-                        taxonId: taxonId
+                        species: result.species || result.scientificName || '-'
                     });
                     processedTaxa.add(taxonId);
                 }
@@ -170,51 +174,213 @@ async function getSpeciesInPolygon(polygonCoords) {
         }
     }
 
+    console.log(`Total species data before deduplication: ${speciesData.length}`);
     return speciesData;
 }
 
 // Function to sort species data
 function sortSpeciesData(speciesData) {
     return speciesData.sort((a, b) => {
-        const fields = ['kingdom', 'phylum', 'class', 'order', 'species'];
-        for (const field of fields) {
-            if (a[field] !== b[field]) {
-                return a[field].localeCompare(b[field]);
-            }
+        if (a.scientificName && b.scientificName) {
+            return a.scientificName.localeCompare(b.scientificName);
         }
         return 0;
     });
 }
 
-// Function to display species list
-function displaySpeciesList(speciesData) {
+function displaySpecies(species) {
+    console.log('Displaying species data:', species);
     const speciesList = document.getElementById('speciesList');
     const speciesHeader = document.querySelector('.species-list-header');
-    speciesList.innerHTML = '';
-
-    if (speciesData.length > 0) {
+    
+    if (!species || species.length === 0) {
+        console.log('No species data to display');
+        speciesHeader.textContent = '0 Species found within Geofence';
         speciesHeader.classList.remove('d-none');
-    } else {
-        speciesHeader.classList.add('d-none');
+        speciesList.innerHTML = '<div class="species-item">No species found in this area.</div>';
+        return;
     }
 
-    speciesData.forEach(species => {
-        const div = document.createElement('div');
-        div.className = 'species-item';
-        div.innerHTML = `
-            <div class="species-name">
-                <strong>${species.species}</strong> (${species.taxonId})
-            </div>
-            <div class="species-taxonomy">
-                ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}
-            </div>
+    // Create a Map to store unique species by taxonKey instead of scientific name
+    const uniqueSpecies = new Map();
+    
+    species.forEach(s => {
+        // Use taxonKey as the unique identifier
+        if (!uniqueSpecies.has(s.taxonKey)) {
+            uniqueSpecies.set(s.taxonKey, s);
+        }
+    });
+
+    // Convert unique species back to array
+    const uniqueSpeciesArray = Array.from(uniqueSpecies.values());
+    console.log(`Unique species after deduplication: ${uniqueSpeciesArray.length}`);
+    
+    // Update header with count
+    speciesHeader.textContent = `${uniqueSpeciesArray.length} Species found within Geofence`;
+    speciesHeader.classList.remove('d-none');
+    
+    // Clear existing list
+    speciesList.innerHTML = '';
+    
+    // Display unique species
+    uniqueSpeciesArray.forEach(species => {
+        const speciesItem = document.createElement('div');
+        speciesItem.className = 'species-item';
+        
+        const commonName = species.vernacularName || 'No common name available';
+        const scientificName = species.scientificName || 'Unknown species';
+        const taxonId = species.taxonKey || 'N/A';
+        
+        speciesItem.innerHTML = `
+            <strong>${commonName}</strong><br>
+            <em>${scientificName}</em><br>
+            <small>Taxonomy: ${species.kingdom} > ${species.phylum} > ${species.class} > ${species.order}</small><br>
+            <small>Taxon ID: ${taxonId}</small>
         `;
-        speciesList.appendChild(div);
+        
+        speciesList.appendChild(speciesItem);
     });
 }
 
-// Function to save geofence and search for species
-async function saveGeofenceAndSearch() {
+// Initialize modal
+let loadGeofenceModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap modal
+    loadGeofenceModal = new bootstrap.Modal(document.getElementById('loadGeofenceModal'));
+    displaySavedGeofences();
+    // ... rest of existing DOMContentLoaded code ...
+});
+
+function showLoadGeofenceModal() {
+    displaySavedGeofences(); // Refresh the list
+    loadGeofenceModal.show();
+}
+
+// Function to display saved geofences
+function displaySavedGeofences() {
+    const savedPolygons = JSON.parse(localStorage.getItem('savedPolygons') || '[]');
+    const geofenceList = document.getElementById('savedGeofencesList');
+    
+    if (!geofenceList) {
+        console.error('Geofence list element not found');
+        return;
+    }
+
+    geofenceList.innerHTML = '';
+    
+    if (savedPolygons.length === 0) {
+        geofenceList.innerHTML = '<div class="text-muted p-3">No saved geofences</div>';
+        return;
+    }
+
+    savedPolygons.forEach((polygon, index) => {
+        const item = document.createElement('div');
+        item.className = 'saved-geofence-item d-flex justify-content-between align-items-center';
+        item.innerHTML = `
+            <span>${polygon.name}</span>
+            <div>
+                <button class="btn btn-sm btn-primary me-2" onclick="loadGeofence(${index})">
+                    <small>Load</small>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteGeofence(${index})">
+                    <small>Delete</small>
+                </button>
+            </div>
+        `;
+        geofenceList.appendChild(item);
+    });
+}
+
+// Function to delete a specific geofence
+function deleteGeofence(index) {
+    const savedPolygons = JSON.parse(localStorage.getItem('savedPolygons') || '[]');
+    const deletedName = savedPolygons[index].name;
+    
+    savedPolygons.splice(index, 1);
+    localStorage.setItem('savedPolygons', JSON.stringify(savedPolygons));
+    
+    displaySavedGeofences();
+    toastr.success(`Deleted geofence: ${deletedName}`);
+}
+
+// Function to clear all saved geofences
+function clearAllGeofences() {
+    if (confirm('Are you sure you want to delete all saved geofences?')) {
+        localStorage.removeItem('savedPolygons');
+        displaySavedGeofences();
+        toastr.success('All geofences cleared');
+        loadGeofenceModal.hide();
+    }
+}
+
+// Function to load a specific geofence
+function loadGeofence(index) {
+    const savedPolygons = JSON.parse(localStorage.getItem('savedPolygons') || '[]');
+    const polygon = savedPolygons[index];
+    
+    if (!polygon) {
+        toastr.error('Geofence not found');
+        return;
+    }
+
+    // Clear existing polygon
+    drawnItems.clearLayers();
+    
+    // Create new polygon from saved coordinates
+    currentPolygon = L.polygon(polygon.coordinates);
+    drawnItems.addLayer(currentPolygon);
+    
+    // Set the polygon name
+    document.getElementById('polygonName').value = polygon.name;
+    
+    // Fit map to polygon bounds
+    map.fitBounds(currentPolygon.getBounds());
+    
+    // Close the modal
+    loadGeofenceModal.hide();
+    
+    toastr.success(`Loaded geofence: ${polygon.name}`);
+}
+
+// Function to search for species in the current polygon
+async function searchSpecies() {
+    if (!currentPolygon) {
+        toastr.error('Please draw a polygon first');
+        return;
+    }
+
+    showLoading();
+    try {
+        // Get coordinates from the polygon
+        const coords = currentPolygon.getLatLngs()[0].map(latLng => [latLng.lat, latLng.lng]);
+        
+        // Ensure the polygon is closed
+        if (coords[0][0] !== coords[coords.length - 1][0] || 
+            coords[0][1] !== coords[coords.length - 1][1]) {
+            coords.push(coords[0]);
+        }
+
+        // Get species data
+        console.log('Fetching species data for polygon...');
+        lastSpeciesData = await getSpeciesInPolygon(coords);
+        console.log('Species data fetched:', lastSpeciesData);
+        const sortedSpecies = sortSpeciesData(lastSpeciesData);
+        
+        // Display species list
+        displaySpecies(sortedSpecies);
+        
+        toastr.success('Species search completed');
+    } catch (error) {
+        console.error('Error:', error);
+        toastr.error('Error searching for species');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Function to save the current geofence
+function saveGeofence() {
     if (!currentPolygon) {
         toastr.error('Please draw a polygon first');
         return;
@@ -226,7 +392,6 @@ async function saveGeofenceAndSearch() {
         return;
     }
 
-    showLoading();
     try {
         // Get coordinates from the polygon
         const coords = currentPolygon.getLatLngs()[0].map(latLng => [latLng.lat, latLng.lng]);
@@ -244,89 +409,28 @@ async function saveGeofenceAndSearch() {
         };
         
         const savedPolygons = JSON.parse(localStorage.getItem('savedPolygons') || '[]');
-        savedPolygons.push(polygonData);
+        
+        // Check if a polygon with this name already exists
+        const existingIndex = savedPolygons.findIndex(p => p.name === polygonName);
+        if (existingIndex >= 0) {
+            if (confirm(`A geofence named "${polygonName}" already exists. Do you want to update it?`)) {
+                savedPolygons[existingIndex] = polygonData;
+                toastr.success('Geofence updated successfully');
+            } else {
+                return;
+            }
+        } else {
+            savedPolygons.push(polygonData);
+            toastr.success('Geofence saved successfully');
+        }
+        
         localStorage.setItem('savedPolygons', JSON.stringify(savedPolygons));
-
-        // Get species data
-        lastSpeciesData = await getSpeciesInPolygon(coords);
-        const sortedSpecies = sortSpeciesData(lastSpeciesData);
+        displaySavedGeofences();
         
-        // Display species list
-        displaySpeciesList(sortedSpecies);
-        
-        toastr.success('Polygon saved and species search completed');
     } catch (error) {
         console.error('Error:', error);
-        toastr.error('Error saving polygon and searching species');
-    } finally {
-        hideLoading();
+        toastr.error('Error saving geofence');
     }
-}
-
-// Function to load saved geofence
-function loadGeofence() {
-    const savedPolygons = JSON.parse(localStorage.getItem('savedPolygons') || '[]');
-    
-    if (savedPolygons.length === 0) {
-        toastr.error('No saved polygons found');
-        return;
-    }
-
-    // Create a modal to display saved polygons
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.innerHTML = `
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Load Saved Polygon</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="list-group">
-                        ${savedPolygons.map((polygon, index) => `
-                            <button type="button" class="list-group-item list-group-item-action" 
-                                    onclick="loadPolygon(${index})" data-bs-dismiss="modal">
-                                ${polygon.name}
-                            </button>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    
-    const modalInstance = new bootstrap.Modal(modal);
-    modalInstance.show();
-    
-    modal.addEventListener('hidden.bs.modal', function () {
-        document.body.removeChild(modal);
-    });
-}
-
-// Function to load a specific polygon
-function loadPolygon(index) {
-    const savedPolygons = JSON.parse(localStorage.getItem('savedPolygons') || '[]');
-    const polygon = savedPolygons[index];
-    
-    if (!polygon) {
-        toastr.error('Polygon not found');
-        return;
-    }
-
-    // Clear existing polygon
-    drawnItems.clearLayers();
-    
-    // Create new polygon
-    currentPolygon = L.polygon(polygon.coordinates);
-    drawnItems.addLayer(currentPolygon);
-    
-    // Fit map to polygon bounds
-    map.fitBounds(currentPolygon.getBounds());
-    
-    document.getElementById('polygonName').value = polygon.name;
-    toastr.success('Polygon loaded successfully');
 }
 
 // Function to download species list as CSV
