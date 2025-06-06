@@ -20,8 +20,61 @@ body {
 }
 
 .navbar {
-    border-radius: 8px 8px 0 0;
     flex-shrink: 0;
+}
+
+.instructions-container {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    overflow: hidden;
+    width: 100%;
+}
+
+.instructions-toggle {
+    padding: 8px 15px;
+    background-color: #e9ecef;
+    border-bottom: 1px solid #ddd;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.instructions-toggle:hover {
+    background-color: #dee2e6;
+}
+
+.instructions {
+    padding: 15px;
+    margin-bottom: 0;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.instructions p {
+    margin-bottom: 8px;
+}
+
+.instructions ol {
+    margin-bottom: 8px;
+    padding-left: 25px;
+}
+
+.attribution {
+    font-size: 0.9em;
+    color: #666;
+    font-style: italic;
+}
+
+.instructions-content {
+    max-height: 1000px;
+    transition: max-height 0.3s ease-out;
+    background-color: white;
+}
+
+.instructions-content.collapsed {
+    max-height: 0;
 }
 
 .content-container {
@@ -31,13 +84,12 @@ body {
 }
 
 #map {
-    flex: 1;
-    max-width: calc(100% - 650px);
+    width: 50%;
     height: calc(100vh - 180px);
 }
 
 .control-panel {
-    width: 650px;
+    width: 50%;
     background: white;
     border-left: 1px solid #ddd;
     height: calc(100vh - 180px);
@@ -106,80 +158,29 @@ body {
     transform: rotate(180deg);
 }
 
-.instructions-container {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #ddd;
-    overflow: hidden;
-    width: 100%;
-}
-
-.instructions-toggle {
-    padding: 8px 15px;
-    background-color: #e9ecef;
-    border-bottom: 1px solid #ddd;
-    cursor: pointer;
-    user-select: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.instructions-toggle:hover {
-    background-color: #dee2e6;
-}
-
-.instructions-toggle .toggle-icon {
-    transition: transform 0.3s ease;
-}
-
-.instructions-toggle.collapsed .toggle-icon {
-    transform: rotate(-90deg);
-}
-
-.instructions-content {
-    max-height: 1000px;
-    transition: max-height 0.3s ease-out;
-    background-color: white;
-}
-
-.instructions-content.collapsed {
-    max-height: 0;
-}
-
-.instructions {
-    padding: 15px;
-    margin-bottom: 0;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.instructions p {
-    margin-bottom: 8px;
-}
-
-.instructions ol {
-    margin-bottom: 8px;
-    padding-left: 25px;
-}
-
-.attribution {
-    font-size: 0.9em;
-    color: #666;
-    font-style: italic;
-}
-
 .species-list-container {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
 }
 
 .species-list-header {
-    margin-bottom: 15px;
-    padding-bottom: 10px;
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 0 20px 10px;
+    margin: 0 -20px 15px;
     border-bottom: 2px solid #eee;
     font-size: 1.1em;
     font-weight: 500;
+    z-index: 10;
+}
+
+.species-list {
+    flex: 1;
+    overflow-y: auto;
 }
 
 .toast-container {
@@ -187,12 +188,6 @@ body {
     top: 30px;
     right: 30px;
     z-index: 9999;
-}
-
-.species-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
 }
 
 .species-item {
