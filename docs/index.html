@@ -58,6 +58,7 @@
                                 <button class="btn btn-primary" onclick="searchSpecies()">Search Species in Polygon</button>
                                 <button class="btn btn-success" onclick="saveGeofence()">Save Current Geofence</button>
                                 <button class="btn btn-secondary" onclick="showLoadGeofenceModal()">Load Geofence</button>
+                                <button class="btn btn-info" onclick="showSqlDownloadModal()">Submit SQL Query to GBIF</button>
                             </div>
                         </div>
                     </div>
@@ -96,6 +97,48 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SQL Download Modal -->
+    <div class="modal fade" id="sqlDownloadModal" tabindex="-1" aria-labelledby="sqlDownloadModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sqlDownloadModalLabel">Download GBIF Data via SQL Query</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Note:</strong> You need a GBIF account to use this feature. 
+                        <a href="https://www.gbif.org/user/register" target="_blank" rel="noopener">Register here</a> if you don't have one.
+                    </div>
+                    <form id="gbifSqlForm">
+                        <div class="mb-3">
+                            <label for="gbifUsername" class="form-label">GBIF Username</label>
+                            <input type="text" class="form-control" id="gbifUsername" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="gbifPassword" class="form-label">GBIF Password</label>
+                            <input type="password" class="form-control" id="gbifPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="gbifEmail" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="gbifEmail" required>
+                            <div class="form-text">Results will be sent to this email address</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sqlQuery" class="form-label">SQL Query</label>
+                            <textarea class="form-control" id="sqlQuery" rows="10" readonly></textarea>
+                            <div class="form-text">This query will return species data for your selected polygon</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="submitSqlQuery()">Submit Query</button>
                 </div>
             </div>
         </div>
@@ -151,4 +194,4 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script src="js/app.js"></script>
 </body>
-</html> 
+</html>

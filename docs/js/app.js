@@ -544,11 +544,12 @@ async function loadMoreSpecies() {
 }
 
 // Initialize modal
-let loadGeofenceModal;
+let loadGeofenceModal, sqlDownloadModal;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Bootstrap modal
     loadGeofenceModal = new bootstrap.Modal(document.getElementById('loadGeofenceModal'));
+    sqlDownloadModal = new bootstrap.Modal(document.getElementById('sqlDownloadModal'));
     displaySavedGeofences();
     // ... rest of existing DOMContentLoaded code ...
 });
@@ -865,4 +866,85 @@ function downloadSpeciesList() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-} 
+}
+
+// Function to show SQL download modal
+function showSqlDownloadModal() {
+    if (!currentPolygon) {
+        toastr.warning('Please draw a polygon first');
+        return;
+    }
+
+    const coordinates = currentPolygon.getLatLngs()[0]
+        .map(coord => `${coord.lng} ${coord.lat}`)
+        .join(',');
+    
+    // Convert to WKT format and close the polygon
+    const polygonStr = `${coordinates},${currentPolygon.getLatLngs()[0][0].lng} ${currentPolygon.getLatLngs()[0][0].lat}`;
+
+    // Create the SQL query with the current polygon
+    const sqlQuery = `SELECT DISTINCT
+    class,
+    occurrence."order",
+    family,
+    genus,
+    species,
+    vernacularname,
+    taxonkey
+FROM
+    occurrence
+WHERE
+    GBIF_WITHIN('POLYGON((${polygonStr}))', occurrence.decimallatitude, occurrence.decimallongitude) = TRUE
+    AND occurrence.phylumkey = 44
+    AND occurrence.vernacularname IS NOT NULL`;
+
+    document.getElementById('sqlQuery').value = sqlQuery;
+    sqlDownloadModal.show();
+}
+
+// Function to submit SQL query
+async function submitSqlQuery() {
+    const username = document.getElementById('gbifUsername').value;
+    const password = document.getElementById('gbifPassword').value;
+    const email = document.getElementById('gbifEmail').value;
+    const sqlQuery = document.getElementById('sqlQuery').value;
+
+    if (!username || !password || !email) {
+        toastr.error('Please fill in all fields');
+        return;
+    }
+
+    const requestBody = {
+        sendNotification: true,
+        notificationAddresses: [email],
+        format: "SQL_TSV_ZIP",
+        sql: sqlQuery
+    };
+
+    try {
+        const response = await fetch('https://api.gbif.org/v1/occurrence/download/request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + btoa(username + ':' + password)
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (response.status === 201) {
+            const downloadKey = await response.text();
+            toastr.success('Query submitted successfully! You will receive an email when your download is ready.');
+            sqlDownloadModal.hide();
+        } else if (response.status === 401) {
+            toastr.error('Invalid username or password');
+        } else if (response.status === 403) {
+            toastr.error('You do not have permission to use this feature. Please contact helpdesk@gbif.org');
+        } else {
+            const errorText = await response.text();
+            toastr.error('Error submitting query: ' + errorText);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        toastr.error('Error submitting query. Please try again.');
+    }
+}
