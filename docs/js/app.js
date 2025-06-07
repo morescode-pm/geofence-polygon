@@ -124,7 +124,7 @@ async function searchLocation() {
 // Function to get the most common name for a species
 async function getMostCommonName(taxonKey, countryCode = null) {
     try {
-        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames`);
+        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}/vernacularNames?limit=1`);
         const data = await response.json();
         
         if (data && data.results && data.results.length > 0) {
@@ -153,14 +153,6 @@ async function getMostCommonName(taxonKey, countryCode = null) {
                         (b.preferredCount || 0) - (a.preferredCount || 0));
                     return sortedCountryNames[0].vernacularName;
                 }
-            }
-
-            // Finally, just take the most preferred name that's not German
-            const nonGermanNames = data.results.filter(n => n.language !== 'deu');
-            if (nonGermanNames.length > 0) {
-                const sortedNames = nonGermanNames.sort((a, b) => 
-                    (b.preferredCount || 0) - (a.preferredCount || 0));
-                return sortedNames[0].vernacularName;
             }
 
             // If all else fails, take the most preferred name
