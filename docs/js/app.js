@@ -197,7 +197,7 @@ async function fetchCommonNamesForBatch(species, countryCode = null) {
 }
 
 // Function to get species in polygon from GBIF
-async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 1000) {
+async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 300) {
     // Format polygon coordinates for GBIF
     const polygonStr = 'POLYGON((' + 
         polygonCoords.map(coord => `${coord[1]} ${coord[0]}`).join(',') +
@@ -328,8 +328,8 @@ async function displaySpecies(species, total = null, isAppending = false) {
     const uniqueSpeciesArray = Array.from(uniqueSpecies.values());
     console.log(`Unique species after deduplication: ${uniqueSpeciesArray.length}`);
     
-    // Calculate total occurrences processed - start with 1000 for initial load
-    const processedOccurrences = isAppending ? currentOffset + 1000 : 1000;
+    // Calculate total occurrences processed - start with 300 for initial load
+    const processedOccurrences = isAppending ? currentOffset + 300 : 300;
     
     // Create the base header content
     const baseHeaderContent = `
@@ -432,7 +432,7 @@ async function loadMoreSpecies() {
     try {
         let newSpecies = [];
         let batchOffset = currentOffset;
-        const batchSize = 1000;
+        const batchSize = 300;
         const maxRetries = 3;
         const maxTimePerBatch = 10000; // 10 seconds timeout per batch
         const existingSpeciesIds = new Set(
@@ -441,7 +441,7 @@ async function loadMoreSpecies() {
         );
 
         // Keep fetching until we have at least 100 new unique species
-        while (newSpecies.length < 100) {
+        while (newSpecies.length < 50) {
             let retryCount = 0;
             let batchSuccess = false;
 
@@ -531,7 +531,7 @@ async function loadMoreSpecies() {
         toastr.error('Error loading more species. You can try again.');
         
         // Increment offset even on error to prevent getting stuck
-        currentOffset += 1000;
+        currentOffset += 300;
     } finally {
         clearTimeout(timeoutId);
         isLoadingMore = false;
@@ -671,13 +671,13 @@ async function searchSpecies() {
         
         let allSpecies = [];
         let batchOffset = 0;
-        const batchSize = 1000;
+        const batchSize = 300;
         let timeoutId;
         const maxRetries = 3;
         const maxTimePerBatch = 30000; // 30 seconds timeout per batch
 
-        // Keep fetching until we have at least 100 species
-        while (allSpecies.length < 100) {
+        // Keep fetching until we have at least 50 species
+        while (allSpecies.length < 50) {
             let retryCount = 0;
             let batchSuccess = false;
 
