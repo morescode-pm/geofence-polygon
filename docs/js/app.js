@@ -210,7 +210,8 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 300) {
         kingdomKey: '1', // Animalia
         hasCoordinate: 'true',
         status: 'ACCEPTED',
-        phylumKey: '44' // Include chordata
+        phylumKey: '44', // Include chordata
+        dataset_key: '50c9509d-22c7-4a22-a47d-8c48425ef4a7' // iNaturalist
     });
 
     try {
