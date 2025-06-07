@@ -155,6 +155,14 @@ async function getMostCommonName(taxonKey, countryCode = null) {
                 }
             }
 
+            // Finally, just take the most preferred name that's not German
+            const nonGermanNames = data.results.filter(n => n.language !== 'deu');
+            if (nonGermanNames.length > 0) {
+                const sortedNames = nonGermanNames.sort((a, b) => 
+                    (b.preferredCount || 0) - (a.preferredCount || 0));
+                return sortedNames[0].vernacularName;
+            }
+
             // If all else fails, take the most preferred name
             const sortedNames = data.results.sort((a, b) => 
                 (b.preferredCount || 0) - (a.preferredCount || 0));
