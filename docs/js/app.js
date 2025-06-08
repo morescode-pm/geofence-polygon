@@ -175,6 +175,52 @@ async function getMostCommonName(taxonKey, countryCode = null) {
     }
 }
 
+// Function to get EOL icon for a species
+async function getEOLIcon(speciesName) {
+    console.log(`Searching EOL for icon for: ${speciesName}`);
+    const eolApiUrl = `https://eol.org/api/search/1.0.json?q=${encodeURIComponent(speciesName)}`;
+
+    try {
+        const response = await fetch(eolApiUrl);
+        if (!response.ok) {
+            console.error(`EOL API error for ${speciesName}: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        const data = await response.json();
+
+        if (data.results && data.results.length > 0) {
+            for (const result of data.results) {
+                if (result.dataObjects && result.dataObjects.length > 0) {
+                    let jpegIcon = null;
+                    let pngIcon = null;
+
+                    for (const obj of result.dataObjects) {
+                        if (obj.dataType === 'http://purl.org/dc/dcmitype/StillImage') {
+                            if (obj.mimeType === 'image/jpeg' && obj.eolMediaURL) {
+                                jpegIcon = obj.eolMediaURL;
+                                break; // Prioritize JPEG
+                            } else if (obj.mimeType === 'image/png' && obj.eolMediaURL) {
+                                pngIcon = obj.eolMediaURL;
+                            }
+                        }
+                    }
+
+                    const iconUrl = jpegIcon || pngIcon;
+                    if (iconUrl) {
+                        console.log(`Found EOL icon for ${speciesName}: ${iconUrl}`);
+                        return iconUrl;
+                    }
+                }
+            }
+        }
+        console.log(`No suitable EOL icon found for ${speciesName}`);
+        return null;
+    } catch (error) {
+        console.error(`Error fetching EOL icon for ${speciesName}:`, error);
+        return null;
+    }
+}
+
 // Function to batch fetch common names
 async function fetchCommonNamesForBatch(species, countryCode = null) {
     const batchPromises = species.map(async (species) => {
@@ -263,6 +309,16 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 300) {
                 processedTaxa.add(taxonId);
             }
         }
+
+        // Fetch EOL icons for each species
+        console.log('Fetching EOL icons for species...');
+        for (let i = 0; i < speciesData.length; i++) {
+            const species = speciesData[i];
+            console.log(`Fetching EOL icon for ${species.scientificName} (${i + 1}/${speciesData.length})`);
+            species.eolIconURL = await getEOLIcon(species.scientificName);
+            console.log(`EOL icon for ${species.scientificName}: ${species.eolIconURL}`);
+        }
+        console.log('Finished fetching EOL icons.');
 
         return { 
             species: speciesData, 
@@ -395,8 +451,16 @@ async function displaySpecies(species, total = null, isAppending = false) {
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
         speciesItem.setAttribute('data-taxon-key', species.taxonKey);
+        speciesItem.style.display = 'flex'; // Added for flex layout
+        speciesItem.style.alignItems = 'center'; // Added for flex layout
+
+        let iconHtml = '<div style="width: 50px; height: 50px; margin-right: 10px; border-radius: 5px; display: flex; align-items: center; justify-content: center; background-color: #f0f0f0;"><span style="font-size: 10px; color: #aaa;">No Icon</span></div>'; // Placeholder with text
+        if (species.eolIconURL) {
+            iconHtml = `<img src="${species.eolIconURL}" alt="Icon for ${species.mostCommonName || species.scientificName}" style="width: 50px; height: 50px; object-fit: cover; margin-right: 10px; border-radius: 5px;">`;
+        }
         
         speciesItem.innerHTML = `
+            ${iconHtml}
             <div class="species-item-content">
                 <span class="species-name">${species.mostCommonName || species.vernacularName || species.scientificName}</span>
                 <span class="species-taxonomy">
