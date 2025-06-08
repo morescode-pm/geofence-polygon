@@ -991,6 +991,16 @@ WHERE
     AND occurrence.phylumkey = 44
     AND occurrence.vernacularname IS NOT NULL`;
 
+    const encodedSqlQuery = encodeURIComponent(sqlQuery);
+    const directDownloadLink = `https://www.gbif.org/occurrence/download/sql?sql=${encodedSqlQuery}`;
+
+    const gbifLinkElement = document.getElementById('gbifDirectQueryLink');
+    if (gbifLinkElement) {
+        gbifLinkElement.href = directDownloadLink;
+    } else {
+        console.error("Could not find the 'gbifDirectQueryLink' element in the DOM.");
+    }
+
     document.getElementById('sqlQuery').value = sqlQuery;
     sqlDownloadModal.show();
 }
