@@ -175,6 +175,58 @@ async function getMostCommonName(taxonKey, countryCode = null) {
     }
 }
 
+// Function to get Wikimedia Commons icon for a species
+async function getWikimediaIcon(queryTerm) {
+    const params = new URLSearchParams({
+        action: 'query',
+        format: 'json',
+        formatversion: '2',
+        generator: 'search',
+        gsrsearch: queryTerm,
+        gsrnamespace: '6', // File namespace
+        gsrlimit: '1',
+        prop: 'imageinfo',
+        iiprop: 'url',
+        iiurlwidth: '50', // For a 50px wide thumbnail
+        origin: '*' // Required for CORS requests
+    });
+    const apiUrl = `https://commons.wikimedia.org/w/api.php?${params}`;
+    console.log(`Calling Wikimedia API: ${apiUrl}`);
+
+    try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            console.error(`Wikimedia API error for ${queryTerm}: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        const data = await response.json();
+
+        if (data.query && data.query.pages && data.query.pages.length > 0) {
+            const page = data.query.pages[0];
+            if (page.imageinfo && page.imageinfo.length > 0) {
+                const imageInfo = page.imageinfo[0];
+                let iconUrl = null;
+                if (imageInfo.thumburl && typeof imageInfo.thumburl === 'string' && imageInfo.thumburl.startsWith('http')) {
+                    iconUrl = imageInfo.thumburl;
+                } else if (imageInfo.url && typeof imageInfo.url === 'string' && imageInfo.url.startsWith('http')) {
+                    // Fallback to full url if thumburl isn't valid or present
+                    iconUrl = imageInfo.url;
+                }
+
+                if (iconUrl) {
+                    console.log(`Wikimedia icon found for ${queryTerm}: ${iconUrl}`);
+                    return iconUrl;
+                }
+            }
+        }
+        console.log(`No Wikimedia icon found for ${queryTerm} in API response structure.`);
+        return null;
+    } catch (error) {
+        console.error(`Error fetching Wikimedia icon for ${queryTerm}:`, error);
+        return null;
+    }
+}
+
 // Function to batch fetch common names
 async function fetchCommonNamesForBatch(species, countryCode = null) {
     const batchPromises = species.map(async (species) => {
@@ -210,7 +262,8 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 300) {
         kingdomKey: '1', // Animalia
         hasCoordinate: 'true',
         status: 'ACCEPTED',
-        phylumKey: '44' // Include chordata
+        phylumKey: '44', // Include chordata
+        dataset_key: '50c9509d-22c7-4a22-a47d-8c48425ef4a7' // iNaturalist
     });
 
     try {
@@ -379,6 +432,43 @@ async function displaySpecies(species, total = null, isAppending = false) {
     // Track current class
     let currentClass = '';
 
+    // Helper function to load icon for an item
+    async function loadIconForItem(species, taxonKey) {
+        try {
+            let queryTerm = species.species; // This comes from GBIF's result.species
+            if (typeof queryTerm !== 'string' || queryTerm.trim() === '') {
+                console.warn(`Species field for taxonKey ${species.taxonKey} is not a valid string or is empty, falling back to scientificName: '${species.scientificName}'.`);
+                queryTerm = species.scientificName;
+            }
+            const iconURL = await getWikimediaIcon(queryTerm); // Changed to getWikimediaIcon
+            const placeholder = document.getElementById(`icon-placeholder-${taxonKey}`);
+
+            if (placeholder) {
+                if (iconURL) {
+                    placeholder.innerHTML = `<img src="${iconURL}" alt="Icon for ${species.mostCommonName || species.scientificName}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">`;
+                    // Ensure placeholder styling (like background) doesn't interfere
+                    placeholder.style.backgroundColor = 'transparent';
+                } else {
+                    placeholder.innerHTML = 'No Icon';
+                    // Adjust style if needed, e.g., keep background for "No Icon" text
+                    placeholder.style.backgroundColor = '#f0f0f0';
+                    placeholder.style.display = 'flex';
+                    placeholder.style.alignItems = 'center';
+                    placeholder.style.justifyContent = 'center';
+                    placeholder.style.fontSize = '10px';
+                    placeholder.style.color = '#aaa';
+                }
+            }
+        } catch (error) {
+            console.error(`Error loading icon for ${species.scientificName} (taxonKey: ${taxonKey}):`, error);
+            const placeholder = document.getElementById(`icon-placeholder-${taxonKey}`);
+            if (placeholder) {
+                placeholder.innerHTML = 'Error'; // Indicate error in placeholder
+                 placeholder.style.backgroundColor = '#fdd'; // Light red background for error
+            }
+        }
+    }
+
     // Display species
     sortedSpecies.forEach(species => {
         // Check if we need to add a class header
@@ -394,8 +484,11 @@ async function displaySpecies(species, total = null, isAppending = false) {
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
         speciesItem.setAttribute('data-taxon-key', species.taxonKey);
+        speciesItem.style.display = 'flex';
+        speciesItem.style.alignItems = 'center';
         
         speciesItem.innerHTML = `
+            <div id="icon-placeholder-${species.taxonKey}" class="icon-placeholder" style="width: 50px; height: 50px; margin-right: 10px; border-radius: 5px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #aaa;">Loading...</div>
             <div class="species-item-content">
                 <span class="species-name">${species.mostCommonName || species.vernacularName || species.scientificName}</span>
                 <span class="species-taxonomy">
@@ -405,6 +498,7 @@ async function displaySpecies(species, total = null, isAppending = false) {
         `;
         
         speciesList.appendChild(speciesItem);
+        loadIconForItem(species, species.taxonKey); // Call without await
     });
 
     // Store the species data for download
@@ -543,11 +637,12 @@ async function loadMoreSpecies() {
 }
 
 // Initialize modal
-let loadGeofenceModal;
+let loadGeofenceModal, sqlDownloadModal;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Bootstrap modal
     loadGeofenceModal = new bootstrap.Modal(document.getElementById('loadGeofenceModal'));
+    sqlDownloadModal = new bootstrap.Modal(document.getElementById('sqlDownloadModal'));
     displaySavedGeofences();
     // ... rest of existing DOMContentLoaded code ...
 });
@@ -864,4 +959,85 @@ function downloadSpeciesList() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-} 
+}
+
+// Function to show SQL download modal
+function showSqlDownloadModal() {
+    if (!currentPolygon) {
+        toastr.warning('Please draw a polygon first');
+        return;
+    }
+
+    const coordinates = currentPolygon.getLatLngs()[0]
+        .map(coord => `${coord.lng} ${coord.lat}`)
+        .join(',');
+    
+    // Convert to WKT format and close the polygon
+    const polygonStr = `${coordinates},${currentPolygon.getLatLngs()[0][0].lng} ${currentPolygon.getLatLngs()[0][0].lat}`;
+
+    // Create the SQL query with the current polygon
+    const sqlQuery = `SELECT DISTINCT
+    class,
+    occurrence."order",
+    family,
+    genus,
+    species,
+    vernacularname,
+    taxonkey
+FROM
+    occurrence
+WHERE
+    GBIF_WITHIN('POLYGON((${polygonStr}))', occurrence.decimallatitude, occurrence.decimallongitude) = TRUE
+    AND occurrence.phylumkey = 44
+    AND occurrence.vernacularname IS NOT NULL`;
+
+    document.getElementById('sqlQuery').value = sqlQuery;
+    sqlDownloadModal.show();
+}
+
+// Function to submit SQL query
+async function submitSqlQuery() {
+    const username = document.getElementById('gbifUsername').value;
+    const password = document.getElementById('gbifPassword').value;
+    const email = document.getElementById('gbifEmail').value;
+    const sqlQuery = document.getElementById('sqlQuery').value;
+
+    if (!username || !password || !email) {
+        toastr.error('Please fill in all fields');
+        return;
+    }
+
+    const requestBody = {
+        sendNotification: true,
+        notificationAddresses: [email],
+        format: "SQL_TSV_ZIP",
+        sql: sqlQuery
+    };
+
+    try {
+        const response = await fetch('https://api.gbif.org/v1/occurrence/download/request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + btoa(username + ':' + password)
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (response.status === 201) {
+            const downloadKey = await response.text();
+            toastr.success('Query submitted successfully! You will receive an email when your download is ready.');
+            sqlDownloadModal.hide();
+        } else if (response.status === 401) {
+            toastr.error('Invalid username or password');
+        } else if (response.status === 403) {
+            toastr.error('You do not have permission to use this feature. Please contact helpdesk@gbif.org');
+        } else {
+            const errorText = await response.text();
+            toastr.error('Error submitting query: ' + errorText);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        toastr.error('Error submitting query. Please try again.');
+    }
+}

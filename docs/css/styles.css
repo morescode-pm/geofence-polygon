@@ -332,4 +332,26 @@ body {
     background: #ffffff;
     padding-left: 48px;
     border-left: 3px solid #dee2e6;
-} 
+}
+
+/* SQL Download Modal styles */
+#sqlQuery {
+    font-family: monospace;
+    font-size: 14px;
+    white-space: pre;
+    resize: vertical;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.alert-info a {
+    color: #055160;
+    text-decoration: underline;
+}
+
+.alert-info a:hover {
+    color: #055160;
+    text-decoration: none;
+}

@@ -1,0 +1,23 @@
+SELECT DISTINCT
+  class,
+  occurrence."order",
+  family,
+  genus,
+  species,
+  vernacularname,
+  taxonkey
+FROM
+  occurrence
+WHERE
+  GBIF_WITHIN('POLYGON((
+      -87.75778 41.98123,
+      -87.66876 41.87552,
+      -87.72525 41.83791,
+      -87.69272 41.81686,
+      -87.61654 41.82707,
+      -87.60371 41.88445,
+      -87.68844 41.99396,
+      -87.75778 41.98123
+    ))', occurrence.decimallatitude, occurrence.decimallongitude) = TRUE
+  AND occurrence.phylumkey = 44
+  AND occurrence.vernacularname IS NOT NULL
