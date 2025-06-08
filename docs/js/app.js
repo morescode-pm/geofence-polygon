@@ -175,48 +175,54 @@ async function getMostCommonName(taxonKey, countryCode = null) {
     }
 }
 
-// Function to get EOL icon for a species
-async function getEOLIcon(speciesName) {
-    console.log(`Searching EOL for icon for: ${speciesName}`);
-    const eolApiUrl = `https://eol.org/api/search/1.0.json?q=${encodeURIComponent(speciesName)}`;
+// Function to get Wikimedia Commons icon for a species
+async function getWikimediaIcon(queryTerm) {
+    const params = new URLSearchParams({
+        action: 'query',
+        format: 'json',
+        formatversion: '2',
+        generator: 'search',
+        gsrsearch: queryTerm,
+        gsrnamespace: '6', // File namespace
+        gsrlimit: '1',
+        prop: 'imageinfo',
+        iiprop: 'url',
+        iiurlwidth: '50', // For a 50px wide thumbnail
+        origin: '*' // Required for CORS requests
+    });
+    const apiUrl = `https://commons.wikimedia.org/w/api.php?${params}`;
+    console.log(`Calling Wikimedia API: ${apiUrl}`);
 
     try {
-        const response = await fetch(eolApiUrl);
+        const response = await fetch(apiUrl);
         if (!response.ok) {
-            console.error(`EOL API error for ${speciesName}: ${response.status} ${response.statusText}`);
+            console.error(`Wikimedia API error for ${queryTerm}: ${response.status} ${response.statusText}`);
             return null;
         }
         const data = await response.json();
 
-        if (data.results && data.results.length > 0) {
-            for (const result of data.results) {
-                if (result.dataObjects && result.dataObjects.length > 0) {
-                    let jpegIcon = null;
-                    let pngIcon = null;
+        if (data.query && data.query.pages && data.query.pages.length > 0) {
+            const page = data.query.pages[0];
+            if (page.imageinfo && page.imageinfo.length > 0) {
+                const imageInfo = page.imageinfo[0];
+                let iconUrl = null;
+                if (imageInfo.thumburl && typeof imageInfo.thumburl === 'string' && imageInfo.thumburl.startsWith('http')) {
+                    iconUrl = imageInfo.thumburl;
+                } else if (imageInfo.url && typeof imageInfo.url === 'string' && imageInfo.url.startsWith('http')) {
+                    // Fallback to full url if thumburl isn't valid or present
+                    iconUrl = imageInfo.url;
+                }
 
-                    for (const obj of result.dataObjects) {
-                        if (obj.dataType === 'http://purl.org/dc/dcmitype/StillImage') {
-                            if (obj.mimeType === 'image/jpeg' && obj.eolMediaURL) {
-                                jpegIcon = obj.eolMediaURL;
-                                break; // Prioritize JPEG
-                            } else if (obj.mimeType === 'image/png' && obj.eolMediaURL) {
-                                pngIcon = obj.eolMediaURL;
-                            }
-                        }
-                    }
-
-                    const iconUrl = jpegIcon || pngIcon;
-                    if (iconUrl) {
-                        console.log(`Found EOL icon for ${speciesName}: ${iconUrl}`);
-                        return iconUrl;
-                    }
+                if (iconUrl) {
+                    console.log(`Wikimedia icon found for ${queryTerm}: ${iconUrl}`);
+                    return iconUrl;
                 }
             }
         }
-        console.log(`No suitable EOL icon found for ${speciesName}`);
+        console.log(`No Wikimedia icon found for ${queryTerm} in API response structure.`);
         return null;
     } catch (error) {
-        console.error(`Error fetching EOL icon for ${speciesName}:`, error);
+        console.error(`Error fetching Wikimedia icon for ${queryTerm}:`, error);
         return null;
     }
 }
@@ -434,7 +440,7 @@ async function displaySpecies(species, total = null, isAppending = false) {
                 console.warn(`Species field for taxonKey ${species.taxonKey} is not a valid string or is empty, falling back to scientificName: '${species.scientificName}'.`);
                 queryTerm = species.scientificName;
             }
-            const iconURL = await getEOLIcon(queryTerm);
+            const iconURL = await getWikimediaIcon(queryTerm); // Changed to getWikimediaIcon
             const placeholder = document.getElementById(`icon-placeholder-${taxonKey}`);
 
             if (placeholder) {
