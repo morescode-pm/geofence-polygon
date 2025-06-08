@@ -429,7 +429,12 @@ async function displaySpecies(species, total = null, isAppending = false) {
     // Helper function to load icon for an item
     async function loadIconForItem(species, taxonKey) {
         try {
-            const iconURL = await getEOLIcon(species.scientificName);
+            let queryTerm = species.species; // This comes from GBIF's result.species
+            if (typeof queryTerm !== 'string' || queryTerm.trim() === '') {
+                console.warn(`Species field for taxonKey ${species.taxonKey} is not a valid string or is empty, falling back to scientificName: '${species.scientificName}'.`);
+                queryTerm = species.scientificName;
+            }
+            const iconURL = await getEOLIcon(queryTerm);
             const placeholder = document.getElementById(`icon-placeholder-${taxonKey}`);
 
             if (placeholder) {
