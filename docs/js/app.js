@@ -993,16 +993,6 @@ WHERE
 
     const encodedSqlQuery = encodeURIComponent(sqlQuery);
     const directDownloadLink = `https://www.gbif.org/occurrence/download/sql?sql=${encodedSqlQuery}`;
-    // console.log("Direct download link:", directDownloadLink); // Commented out as requested
-
-    // const linkElement = document.getElementById('directSqlDownloadLink');
-    // if (linkElement) {
-    //     linkElement.href = directDownloadLink;
-    //     linkElement.textContent = "Review and Submit Query on GBIF Site";
-    //     linkElement.style.display = 'block'; // Make it visible
-    // } else {
-    //     console.error("Could not find the 'directSqlDownloadLink' element in the DOM.");
-    // }
 
     const gbifLinkElement = document.getElementById('gbifDirectQueryLink');
     if (gbifLinkElement) {
