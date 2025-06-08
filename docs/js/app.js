@@ -310,16 +310,6 @@ async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 300) {
             }
         }
 
-        // Fetch EOL icons for each species
-        console.log('Fetching EOL icons for species...');
-        for (let i = 0; i < speciesData.length; i++) {
-            const species = speciesData[i];
-            console.log(`Fetching EOL icon for ${species.scientificName} (${i + 1}/${speciesData.length})`);
-            species.eolIconURL = await getEOLIcon(species.scientificName);
-            console.log(`EOL icon for ${species.scientificName}: ${species.eolIconURL}`);
-        }
-        console.log('Finished fetching EOL icons.');
-
         return { 
             species: speciesData, 
             total: data.count || 0,
@@ -436,6 +426,38 @@ async function displaySpecies(species, total = null, isAppending = false) {
     // Track current class
     let currentClass = '';
 
+    // Helper function to load icon for an item
+    async function loadIconForItem(species, taxonKey) {
+        try {
+            const iconURL = await getEOLIcon(species.scientificName);
+            const placeholder = document.getElementById(`icon-placeholder-${taxonKey}`);
+
+            if (placeholder) {
+                if (iconURL) {
+                    placeholder.innerHTML = `<img src="${iconURL}" alt="Icon for ${species.mostCommonName || species.scientificName}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">`;
+                    // Ensure placeholder styling (like background) doesn't interfere
+                    placeholder.style.backgroundColor = 'transparent';
+                } else {
+                    placeholder.innerHTML = 'No Icon';
+                    // Adjust style if needed, e.g., keep background for "No Icon" text
+                    placeholder.style.backgroundColor = '#f0f0f0';
+                    placeholder.style.display = 'flex';
+                    placeholder.style.alignItems = 'center';
+                    placeholder.style.justifyContent = 'center';
+                    placeholder.style.fontSize = '10px';
+                    placeholder.style.color = '#aaa';
+                }
+            }
+        } catch (error) {
+            console.error(`Error loading icon for ${species.scientificName} (taxonKey: ${taxonKey}):`, error);
+            const placeholder = document.getElementById(`icon-placeholder-${taxonKey}`);
+            if (placeholder) {
+                placeholder.innerHTML = 'Error'; // Indicate error in placeholder
+                 placeholder.style.backgroundColor = '#fdd'; // Light red background for error
+            }
+        }
+    }
+
     // Display species
     sortedSpecies.forEach(species => {
         // Check if we need to add a class header
@@ -451,16 +473,11 @@ async function displaySpecies(species, total = null, isAppending = false) {
         const speciesItem = document.createElement('div');
         speciesItem.className = 'species-item';
         speciesItem.setAttribute('data-taxon-key', species.taxonKey);
-        speciesItem.style.display = 'flex'; // Added for flex layout
-        speciesItem.style.alignItems = 'center'; // Added for flex layout
-
-        let iconHtml = '<div style="width: 50px; height: 50px; margin-right: 10px; border-radius: 5px; display: flex; align-items: center; justify-content: center; background-color: #f0f0f0;"><span style="font-size: 10px; color: #aaa;">No Icon</span></div>'; // Placeholder with text
-        if (species.eolIconURL) {
-            iconHtml = `<img src="${species.eolIconURL}" alt="Icon for ${species.mostCommonName || species.scientificName}" style="width: 50px; height: 50px; object-fit: cover; margin-right: 10px; border-radius: 5px;">`;
-        }
+        speciesItem.style.display = 'flex';
+        speciesItem.style.alignItems = 'center';
         
         speciesItem.innerHTML = `
-            ${iconHtml}
+            <div id="icon-placeholder-${species.taxonKey}" class="icon-placeholder" style="width: 50px; height: 50px; margin-right: 10px; border-radius: 5px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #aaa;">Loading...</div>
             <div class="species-item-content">
                 <span class="species-name">${species.mostCommonName || species.vernacularName || species.scientificName}</span>
                 <span class="species-taxonomy">
@@ -470,6 +487,7 @@ async function displaySpecies(species, total = null, isAppending = false) {
         `;
         
         speciesList.appendChild(speciesItem);
+        loadIconForItem(species, species.taxonKey); // Call without await
     });
 
     // Store the species data for download
