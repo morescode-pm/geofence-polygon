@@ -248,11 +248,40 @@ async function fetchCommonNamesForBatch(species, countryCode = null) {
     return Promise.all(batchPromises);
 }
 
+// Function to ensure polygon coordinates are in counter-clockwise order.
+// This is important for some geospatial APIs like GBIF that expect a specific winding order.
+// The shoelace formula is used: sum((x2 - x1) * (y2 + y1)).
+// A positive sum typically indicates clockwise order for a coordinate system where Y increases upwards and X increases to the right.
+// GBIF expects counter-clockwise (CCW) order for exterior rings.
+function ensureCounterClockwise(coords) {
+    if (!coords || coords.length < 3) {
+        return coords; // Not a polygon or not enough points to determine winding.
+    }
+
+    let sum = 0;
+    for (let i = 0; i < coords.length - 1; i++) {
+        const p1 = coords[i]; // [latitude, longitude]
+        const p2 = coords[i+1]; // [latitude, longitude]
+        // x is longitude (index 1), y is latitude (index 0)
+        sum += (p2[1] - p1[1]) * (p2[0] + p1[0]);
+    }
+
+    // If sum > 0, polygon is clockwise. Reverse to make it counter-clockwise.
+    if (sum > 0) {
+        return coords.slice().reverse();
+    }
+    return coords; // Already counter-clockwise or area is zero (collinear points).
+}
+
 // Function to get species in polygon from GBIF
 async function getSpeciesInPolygon(polygonCoords, offset = 0, limit = 300) {
+    // GBIF API expects polygon coordinates in a specific winding order (counter-clockwise for outer rings).
+    // The ensureCounterClockwise function checks the winding order and reverses it if necessary.
+    const orientedCoords = ensureCounterClockwise(polygonCoords);
+
     // Format polygon coordinates for GBIF
     const polygonStr = 'POLYGON((' + 
-        polygonCoords.map(coord => `${coord[1]} ${coord[0]}`).join(',') +
+        orientedCoords.map(coord => `${coord[1]} ${coord[0]}`).join(',') +
         '))';
 
     const params = new URLSearchParams({
